@@ -14,7 +14,428 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      expense_records: {
+        Row: {
+          amount: number
+          category_code: string
+          created_at: string
+          description: string | null
+          expense_date: string
+          expense_side: string
+          id: string
+          linked_item: string | null
+          payment_nature: string
+          requested_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          category_code?: string
+          created_at?: string
+          description?: string | null
+          expense_date?: string
+          expense_side?: string
+          id?: string
+          linked_item?: string | null
+          payment_nature?: string
+          requested_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          category_code?: string
+          created_at?: string
+          description?: string | null
+          expense_date?: string
+          expense_side?: string
+          id?: string
+          linked_item?: string | null
+          payment_nature?: string
+          requested_by?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      gift_records: {
+        Row: {
+          created_at: string
+          gift_date: string
+          id: string
+          note: string | null
+          product_id: string
+          quantity: number
+          reason_category: string
+          recipient: string | null
+          source_location: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          gift_date?: string
+          id?: string
+          note?: string | null
+          product_id: string
+          quantity: number
+          reason_category?: string
+          recipient?: string | null
+          source_location?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          gift_date?: string
+          id?: string
+          note?: string | null
+          product_id?: string
+          quantity?: number
+          reason_category?: string
+          recipient?: string | null
+          source_location?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gift_records_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      production_batch_items: {
+        Row: {
+          created_at: string
+          id: string
+          production_batch_id: string
+          quantity_used: number
+          raw_material_id: string
+          total_cost: number
+          unit_cost_used: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          production_batch_id: string
+          quantity_used: number
+          raw_material_id: string
+          total_cost: number
+          unit_cost_used: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          production_batch_id?: string
+          quantity_used?: number
+          raw_material_id?: string
+          total_cost?: number
+          unit_cost_used?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_batch_items_production_batch_id_fkey"
+            columns: ["production_batch_id"]
+            isOneToOne: false
+            referencedRelation: "production_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_batch_items_raw_material_id_fkey"
+            columns: ["raw_material_id"]
+            isOneToOne: false
+            referencedRelation: "raw_materials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      production_batches: {
+        Row: {
+          batch_code: string
+          cost_per_unit: number
+          created_at: string
+          id: string
+          note: string | null
+          product_id: string
+          production_date: string
+          quantity_produced: number
+          total_batch_cost: number
+          updated_at: string
+        }
+        Insert: {
+          batch_code: string
+          cost_per_unit?: number
+          created_at?: string
+          id?: string
+          note?: string | null
+          product_id: string
+          production_date?: string
+          quantity_produced: number
+          total_batch_cost?: number
+          updated_at?: string
+        }
+        Update: {
+          batch_code?: string
+          cost_per_unit?: number
+          created_at?: string
+          id?: string
+          note?: string | null
+          product_id?: string
+          production_date?: string
+          quantity_produced?: number
+          total_batch_cost?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_batches_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          average_cost_per_unit: number
+          bottle_size: string
+          category: string
+          created_at: string
+          id: string
+          is_active: boolean
+          latest_cost_per_unit: number
+          name: string
+          production_stock: number
+          selling_price: number
+          shop_stock: number
+          updated_at: string
+        }
+        Insert: {
+          average_cost_per_unit?: number
+          bottle_size?: string
+          category?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          latest_cost_per_unit?: number
+          name: string
+          production_stock?: number
+          selling_price?: number
+          shop_stock?: number
+          updated_at?: string
+        }
+        Update: {
+          average_cost_per_unit?: number
+          bottle_size?: string
+          category?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          latest_cost_per_unit?: number
+          name?: string
+          production_stock?: number
+          selling_price?: number
+          shop_stock?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      purchase_records: {
+        Row: {
+          converted_quantity: number
+          cost_per_usage_unit: number
+          created_at: string
+          id: string
+          note: string | null
+          purchase_date: string
+          purchase_unit: string
+          quantity_purchased: number
+          raw_material_id: string
+          supplier: string | null
+          total_cost: number
+          updated_at: string
+        }
+        Insert: {
+          converted_quantity: number
+          cost_per_usage_unit: number
+          created_at?: string
+          id?: string
+          note?: string | null
+          purchase_date?: string
+          purchase_unit: string
+          quantity_purchased: number
+          raw_material_id: string
+          supplier?: string | null
+          total_cost: number
+          updated_at?: string
+        }
+        Update: {
+          converted_quantity?: number
+          cost_per_usage_unit?: number
+          created_at?: string
+          id?: string
+          note?: string | null
+          purchase_date?: string
+          purchase_unit?: string
+          quantity_purchased?: number
+          raw_material_id?: string
+          supplier?: string | null
+          total_cost?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_records_raw_material_id_fkey"
+            columns: ["raw_material_id"]
+            isOneToOne: false
+            referencedRelation: "raw_materials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      raw_materials: {
+        Row: {
+          average_cost_per_usage_unit: number
+          created_at: string
+          current_stock: number
+          id: string
+          name: string
+          purchase_unit: string
+          reorder_level: number
+          updated_at: string
+          usage_unit: string
+        }
+        Insert: {
+          average_cost_per_usage_unit?: number
+          created_at?: string
+          current_stock?: number
+          id?: string
+          name: string
+          purchase_unit?: string
+          reorder_level?: number
+          updated_at?: string
+          usage_unit?: string
+        }
+        Update: {
+          average_cost_per_usage_unit?: number
+          created_at?: string
+          current_stock?: number
+          id?: string
+          name?: string
+          purchase_unit?: string
+          reorder_level?: number
+          updated_at?: string
+          usage_unit?: string
+        }
+        Relationships: []
+      }
+      sale_records: {
+        Row: {
+          cost_per_unit: number
+          created_at: string
+          id: string
+          note: string | null
+          product_id: string
+          profit: number
+          quantity_sold: number
+          sale_date: string
+          sale_type: string
+          selling_price_per_unit: number
+          total_cogs: number
+          total_revenue: number
+          updated_at: string
+        }
+        Insert: {
+          cost_per_unit?: number
+          created_at?: string
+          id?: string
+          note?: string | null
+          product_id: string
+          profit?: number
+          quantity_sold: number
+          sale_date?: string
+          sale_type?: string
+          selling_price_per_unit: number
+          total_cogs?: number
+          total_revenue: number
+          updated_at?: string
+        }
+        Update: {
+          cost_per_unit?: number
+          created_at?: string
+          id?: string
+          note?: string | null
+          product_id?: string
+          profit?: number
+          quantity_sold?: number
+          sale_date?: string
+          sale_type?: string
+          selling_price_per_unit?: number
+          total_cogs?: number
+          total_revenue?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sale_records_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      transfer_records: {
+        Row: {
+          created_at: string
+          id: string
+          note: string | null
+          product_id: string
+          production_batch_id: string | null
+          quantity_transferred: number
+          transfer_date: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          product_id: string
+          production_batch_id?: string | null
+          quantity_transferred: number
+          transfer_date?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          product_id?: string
+          production_batch_id?: string | null
+          quantity_transferred?: number
+          transfer_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transfer_records_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transfer_records_production_batch_id_fkey"
+            columns: ["production_batch_id"]
+            isOneToOne: false
+            referencedRelation: "production_batches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
