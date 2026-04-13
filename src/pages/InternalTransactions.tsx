@@ -302,7 +302,7 @@ export default function InternalTransactions() {
       <Dialog open={!!settleId} onOpenChange={() => setSettleId(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Settle Transaction</DialogTitle></DialogHeader>
-          <form onSubmit={(e) => { e.preventDefault(); settleId && settleMutation.mutate(settleId); }} className="space-y-3">
+          <form onSubmit={(e) => { e.preventDefault(); if (settleId) settleMutation.mutate(settleId); }} className="space-y-3">
             <div>
               <label className="text-sm text-muted-foreground">How was it settled?</label>
               <Select value={settlementMethod} onValueChange={setSettlementMethod}>
