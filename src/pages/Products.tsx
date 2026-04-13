@@ -90,6 +90,7 @@ export default function Products() {
                   <TableHead>Price</TableHead>
                   <TableHead>Prod. Stock</TableHead>
                   <TableHead>Shop Stock</TableHead>
+                  <TableHead>Online Stock</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Cost/Unit</TableHead>
                   <TableHead>Margin</TableHead>
@@ -114,6 +115,12 @@ export default function Products() {
                         <div className="flex items-center gap-2">
                           <StockBadge level={getProductStockLevel(Number(p.shop_stock))} />
                           <span>{p.shop_stock}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <StockBadge level={getProductStockLevel(Number((p as any).online_shop_stock ?? 0))} />
+                          <span>{(p as any).online_shop_stock ?? 0}</span>
                         </div>
                       </TableCell>
                       <TableCell><Badge variant={p.is_active ? "default" : "secondary"}>{p.is_active ? "Active" : "Off"}</Badge></TableCell>
