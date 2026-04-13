@@ -16,6 +16,7 @@ import Sales from "./pages/Sales";
 import Expenses from "./pages/Expenses";
 import Gifts from "./pages/Gifts";
 import InternalTransactions from "./pages/InternalTransactions";
+import ProfitLoss from "./pages/ProfitLoss";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -46,6 +47,7 @@ function ProtectedRoutes() {
         <Route path="/internal" element={<InternalTransactions />} />
         <Route path="/expenses" element={<Expenses />} />
         <Route path="/gifts" element={<Gifts />} />
+        <Route path="/profit-loss" element={<ProfitLoss />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AppLayout>

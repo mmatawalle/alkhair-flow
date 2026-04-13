@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Package, ShoppingCart, Factory, ArrowRightLeft,
-  DollarSign, Receipt, Gift, Beaker, LogOut, Repeat
+  DollarSign, Receipt, Gift, Beaker, LogOut, Repeat, TrendingUp
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -23,6 +23,7 @@ const items = [
   { title: "Internal", url: "/internal", icon: Repeat },
   { title: "Expenses", url: "/expenses", icon: Receipt },
   { title: "Gifts", url: "/gifts", icon: Gift },
+  { title: "Profit & Loss", url: "/profit-loss", icon: TrendingUp },
 ];
 
 export function AppSidebar() {
