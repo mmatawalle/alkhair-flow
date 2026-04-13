@@ -208,6 +208,7 @@ export type Database = {
           is_active: boolean
           latest_cost_per_unit: number
           name: string
+          online_shop_stock: number
           production_stock: number
           selling_price: number
           shop_stock: number
@@ -222,6 +223,7 @@ export type Database = {
           is_active?: boolean
           latest_cost_per_unit?: number
           name: string
+          online_shop_stock?: number
           production_stock?: number
           selling_price?: number
           shop_stock?: number
@@ -236,6 +238,7 @@ export type Database = {
           is_active?: boolean
           latest_cost_per_unit?: number
           name?: string
+          online_shop_stock?: number
           production_stock?: number
           selling_price?: number
           shop_stock?: number
