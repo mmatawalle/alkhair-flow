@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -8,9 +9,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus } from "lucide-react";
+import { Truck } from "lucide-react";
 
 export default function Transfers() {
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const [productId, setProductId] = useState("");
   const [qty, setQty] = useState(0);
@@ -18,6 +20,10 @@ export default function Transfers() {
   const [note, setNote] = useState("");
   const { toast } = useToast();
   const qc = useQueryClient();
+
+  useEffect(() => {
+    if ((location.state as any)?.openDialog) setOpen(true);
+  }, [location.state]);
 
   const { data: products } = useQuery({
     queryKey: ["products"],
@@ -66,7 +72,7 @@ export default function Transfers() {
       qc.invalidateQueries({ queryKey: ["products"] });
       setOpen(false);
       setProductId(""); setQty(0); setNote("");
-      toast({ title: "Transfer recorded" });
+      toast({ title: "Transferred ✓" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -74,8 +80,8 @@ export default function Transfers() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-foreground">Transfers (Production → Shop)</h2>
-        <Button onClick={() => setOpen(true)}><Plus className="mr-2 h-4 w-4" />Record Transfer</Button>
+        <h2 className="text-2xl font-bold text-foreground">Transfer Stock</h2>
+        <Button onClick={() => setOpen(true)}><Truck className="mr-2 h-4 w-4" />Transfer to Shop</Button>
       </div>
 
       <Card>
@@ -110,13 +116,16 @@ export default function Transfers() {
           <DialogHeader><DialogTitle>Transfer to Shop</DialogTitle></DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); transferMutation.mutate(); }} className="space-y-3">
             <Select value={productId} onValueChange={setProductId}>
-              <SelectTrigger><SelectValue placeholder="Select Product" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Choose product" /></SelectTrigger>
               <SelectContent>
-                {products?.map(p => <SelectItem key={p.id} value={p.id}>{p.name} ({p.bottle_size}) — Prod: {p.production_stock}</SelectItem>)}
+                {products?.map(p => <SelectItem key={p.id} value={p.id}>{p.name} ({p.bottle_size}) — {p.production_stock} in production</SelectItem>)}
               </SelectContent>
             </Select>
-            {selectedProduct && <p className="text-sm text-muted-foreground">Available in production: {selectedProduct.production_stock}</p>}
-            <Input type="number" min={1} placeholder="Quantity" value={qty || ""} onChange={(e) => setQty(Number(e.target.value))} required />
+            {selectedProduct && <p className="text-sm text-muted-foreground">Available in production: <strong>{selectedProduct.production_stock}</strong></p>}
+            <div>
+              <label className="text-sm text-muted-foreground">How many?</label>
+              <Input type="number" min={1} value={qty || ""} onChange={(e) => setQty(Number(e.target.value))} required />
+            </div>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             <Input placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
             <DialogFooter>

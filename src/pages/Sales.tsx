@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -10,17 +11,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Plus } from "lucide-react";
+import { fmt } from "@/lib/stock-helpers";
 
 export default function Sales() {
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const [productId, setProductId] = useState("");
   const [qtySold, setQtySold] = useState(0);
   const [sellingPrice, setSellingPrice] = useState(0);
   const [saleType, setSaleType] = useState("cash");
+  const [saleSource, setSaleSource] = useState("shop");
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split("T")[0]);
   const [note, setNote] = useState("");
   const { toast } = useToast();
   const qc = useQueryClient();
+
+  // Open dialog from dashboard quick action
+  useEffect(() => {
+    if ((location.state as any)?.openDialog) setOpen(true);
+  }, [location.state]);
 
   const { data: products } = useQuery({
     queryKey: ["products"],
@@ -41,6 +50,9 @@ export default function Sales() {
   });
 
   const selectedProduct = products?.find(p => p.id === productId);
+  const availableStock = selectedProduct
+    ? (saleSource === "production" ? Number(selectedProduct.production_stock) : Number(selectedProduct.shop_stock))
+    : 0;
   const totalRevenue = qtySold * sellingPrice;
   const costPerUnit = Number(selectedProduct?.average_cost_per_unit || 0);
   const totalCOGS = qtySold * costPerUnit;
@@ -50,8 +62,8 @@ export default function Sales() {
     mutationFn: async () => {
       if (!selectedProduct) throw new Error("Select a product");
       if (qtySold <= 0) throw new Error("Quantity must be > 0");
-      if (qtySold > Number(selectedProduct.shop_stock)) {
-        throw new Error(`Not enough shop stock. Available: ${selectedProduct.shop_stock}`);
+      if (qtySold > availableStock) {
+        throw new Error(`Not enough ${saleSource} stock. Available: ${availableStock}`);
       }
 
       const { error: insertError } = await supabase.from("sale_records").insert({
@@ -63,14 +75,18 @@ export default function Sales() {
         total_cogs: totalCOGS,
         profit: profit,
         sale_type: saleType,
+        sale_source: saleSource,
         sale_date: saleDate,
         note: note || null,
       });
       if (insertError) throw insertError;
 
-      const { error: updateError } = await supabase.from("products").update({
-        shop_stock: Number(selectedProduct.shop_stock) - qtySold,
-      }).eq("id", productId);
+      // Deduct from correct stock based on sale source
+      const updateData = saleSource === "production"
+        ? { production_stock: Number(selectedProduct.production_stock) - qtySold }
+        : { shop_stock: Number(selectedProduct.shop_stock) - qtySold };
+
+      const { error: updateError } = await supabase.from("products").update(updateData).eq("id", productId);
       if (updateError) throw updateError;
     },
     onSuccess: () => {
@@ -78,18 +94,16 @@ export default function Sales() {
       qc.invalidateQueries({ queryKey: ["products"] });
       setOpen(false);
       setProductId(""); setQtySold(0); setSellingPrice(0); setNote("");
-      toast({ title: "Sale recorded" });
+      toast({ title: "Sale recorded ✓" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
-
-  const fmt = (n: number) => `₦${Number(n).toLocaleString()}`;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-foreground">Sales</h2>
-        <Button onClick={() => setOpen(true)}><Plus className="mr-2 h-4 w-4" />Record Sale</Button>
+        <Button onClick={() => setOpen(true)}><Plus className="mr-2 h-4 w-4" />Add Sale</Button>
       </div>
 
       <Card>
@@ -99,6 +113,7 @@ export default function Sales() {
               <TableRow>
                 <TableHead>Date</TableHead>
                 <TableHead>Product</TableHead>
+                <TableHead>Source</TableHead>
                 <TableHead>Qty</TableHead>
                 <TableHead>Revenue</TableHead>
                 <TableHead>COGS</TableHead>
@@ -108,15 +123,16 @@ export default function Sales() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={7} className="text-center">Loading...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center">Loading...</TableCell></TableRow>
               ) : sales?.map((s: any) => (
                 <TableRow key={s.id}>
                   <TableCell>{s.sale_date}</TableCell>
                   <TableCell className="font-medium">{s.products?.name} ({s.products?.bottle_size})</TableCell>
+                  <TableCell><Badge variant="outline" className="capitalize">{s.sale_source || "shop"}</Badge></TableCell>
                   <TableCell>{s.quantity_sold}</TableCell>
                   <TableCell>{fmt(s.total_revenue)}</TableCell>
                   <TableCell>{fmt(s.total_cogs)}</TableCell>
-                  <TableCell className={s.profit >= 0 ? "text-green-600" : "text-destructive"}>{fmt(s.profit)}</TableCell>
+                  <TableCell className={Number(s.profit) >= 0 ? "text-emerald-600" : "text-destructive"}>{fmt(s.profit)}</TableCell>
                   <TableCell><Badge variant="outline">{s.sale_type}</Badge></TableCell>
                 </TableRow>
               ))}
@@ -127,18 +143,35 @@ export default function Sales() {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Record Sale</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Add Sale</DialogTitle></DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); saleMutation.mutate(); }} className="space-y-3">
             <Select value={productId} onValueChange={(v) => {
               setProductId(v);
               const p = products?.find(pr => pr.id === v);
               if (p) setSellingPrice(p.selling_price);
             }}>
-              <SelectTrigger><SelectValue placeholder="Select Product" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Choose product" /></SelectTrigger>
               <SelectContent>
-                {products?.map(p => <SelectItem key={p.id} value={p.id}>{p.name} ({p.bottle_size}) — Shop: {p.shop_stock}</SelectItem>)}
+                {products?.map(p => <SelectItem key={p.id} value={p.id}>{p.name} ({p.bottle_size})</SelectItem>)}
               </SelectContent>
             </Select>
+
+            <div>
+              <label className="text-sm text-muted-foreground">Sell from</label>
+              <Select value={saleSource} onValueChange={setSaleSource}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="shop">Shop</SelectItem>
+                  <SelectItem value="production">Production (Online)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedProduct && (
+              <p className="text-sm text-muted-foreground">
+                Available: <strong>{availableStock}</strong> units in {saleSource}
+              </p>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -146,7 +179,7 @@ export default function Sales() {
                 <Input type="number" min={1} value={qtySold || ""} onChange={(e) => setQtySold(Number(e.target.value))} required />
               </div>
               <div>
-                <label className="text-sm text-muted-foreground">Selling Price/Unit (₦)</label>
+                <label className="text-sm text-muted-foreground">Price per unit (₦)</label>
                 <Input type="number" step="any" min={0} value={sellingPrice || ""} onChange={(e) => setSellingPrice(Number(e.target.value))} required />
               </div>
             </div>
@@ -162,10 +195,10 @@ export default function Sales() {
             </Select>
 
             {qtySold > 0 && selectedProduct && (
-              <div className="rounded-md bg-muted p-3 text-sm space-y-1">
+              <div className="rounded-lg bg-muted p-3 text-sm space-y-1">
                 <p>Revenue: <strong>{fmt(totalRevenue)}</strong></p>
-                <p>COGS: <strong>{fmt(totalCOGS)}</strong></p>
-                <p>Profit: <strong className={profit >= 0 ? "text-green-600" : "text-destructive"}>{fmt(profit)}</strong></p>
+                <p>Cost: <strong>{fmt(totalCOGS)}</strong></p>
+                <p>Profit: <strong className={profit >= 0 ? "text-emerald-600" : "text-destructive"}>{fmt(profit)}</strong></p>
               </div>
             )}
 
@@ -173,7 +206,7 @@ export default function Sales() {
             <Input placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
 
             <DialogFooter>
-              <Button type="submit" disabled={saleMutation.isPending}>{saleMutation.isPending ? "Saving..." : "Record Sale"}</Button>
+              <Button type="submit" disabled={saleMutation.isPending}>{saleMutation.isPending ? "Saving..." : "Add Sale"}</Button>
             </DialogFooter>
           </form>
         </DialogContent>

@@ -1,0 +1,1 @@
+ALTER TABLE public.sale_records ADD COLUMN sale_source text NOT NULL DEFAULT 'shop';
