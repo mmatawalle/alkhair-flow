@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,16 +11,22 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Pencil } from "lucide-react";
 import { StockBadge, getProductStockLevel, fmt } from "@/lib/stock-helpers";
+import { useSortableTable } from "@/hooks/use-sortable-table";
+import { SortableTableHead } from "@/components/SortableTableHead";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Product = Tables<"products">;
 
 const emptyForm = { name: "", bottle_size: "50cl", category: "milkshake", selling_price: 0, is_active: true };
 
+type StockFilter = "all" | "available" | "low" | "finished";
+
 export default function Products() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [stockFilter, setStockFilter] = useState<StockFilter>("all");
+  const [nameFilter, setNameFilter] = useState("");
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -32,6 +38,25 @@ export default function Products() {
       return data;
     },
   });
+
+  // Add computed total_stock for sorting
+  const enriched = useMemo(() =>
+    products?.map(p => ({
+      ...p,
+      total_stock: Number(p.production_stock) + Number(p.shop_stock) + Number(p.online_shop_stock),
+      stock_level: getProductStockLevel(Number(p.shop_stock) + Number(p.production_stock) + Number(p.online_shop_stock)),
+    })) ?? []
+  , [products]);
+
+  // Filtering
+  const filtered = useMemo(() => {
+    let list = enriched;
+    if (stockFilter !== "all") list = list.filter(p => p.stock_level === stockFilter);
+    if (nameFilter) list = list.filter(p => p.name.toLowerCase().includes(nameFilter.toLowerCase()));
+    return list;
+  }, [enriched, stockFilter, nameFilter]);
+
+  const { sort, toggleSort, sorted } = useSortableTable(filtered, { key: "name", direction: "asc" });
 
   const saveMutation = useMutation({
     mutationFn: async (values: typeof form) => {
@@ -59,14 +84,6 @@ export default function Products() {
     setOpen(true);
   };
 
-  // Group by category
-  const grouped = products?.reduce<Record<string, Product[]>>((acc, p) => {
-    const cat = p.category || "other";
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(p);
-    return acc;
-  }, {}) ?? {};
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -74,31 +91,40 @@ export default function Products() {
         <Button onClick={() => { setEditing(null); setForm(emptyForm); setOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Product</Button>
       </div>
 
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Input placeholder="Search by name..." value={nameFilter} onChange={e => setNameFilter(e.target.value)} className="w-48" />
+        <div className="flex gap-1">
+          {(["all", "available", "low", "finished"] as StockFilter[]).map(s => (
+            <Button key={s} size="sm" variant={stockFilter === s ? "default" : "outline"} onClick={() => setStockFilter(s)} className="capitalize text-xs">
+              {s === "all" ? "All" : s}
+            </Button>
+          ))}
+        </div>
+      </div>
+
       {isLoading ? (
         <p className="text-muted-foreground">Loading...</p>
-      ) : Object.entries(grouped).map(([category, items]) => (
-        <Card key={category}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base capitalize">{category}s</CardTitle>
-          </CardHeader>
+      ) : (
+        <Card>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
+                  <SortableTableHead label="Name" sortKey="name" sort={sort} onToggle={toggleSort} />
                   <TableHead>Size</TableHead>
-                  <TableHead>Price</TableHead>
-                  <TableHead>Prod. Stock</TableHead>
-                  <TableHead>Shop Stock</TableHead>
-                  <TableHead>Online Stock</TableHead>
+                  <SortableTableHead label="Price" sortKey="selling_price" sort={sort} onToggle={toggleSort} />
+                  <SortableTableHead label="Prod. Stock" sortKey="production_stock" sort={sort} onToggle={toggleSort} />
+                  <SortableTableHead label="Shop Stock" sortKey="shop_stock" sort={sort} onToggle={toggleSort} />
+                  <SortableTableHead label="Online Stock" sortKey="online_shop_stock" sort={sort} onToggle={toggleSort} />
                   <TableHead>Status</TableHead>
-                  <TableHead>Cost/Unit</TableHead>
+                  <SortableTableHead label="Cost/Unit" sortKey="average_cost_per_unit" sort={sort} onToggle={toggleSort} />
                   <TableHead>Margin</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map(p => {
+                {sorted.map(p => {
                   const margin = p.selling_price - p.average_cost_per_unit;
                   return (
                     <TableRow key={p.id}>
@@ -134,7 +160,7 @@ export default function Products() {
             </Table>
           </CardContent>
         </Card>
-      ))}
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
