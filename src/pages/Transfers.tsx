@@ -69,11 +69,16 @@ export default function Transfers() {
       });
       if (insertError) throw insertError;
 
-      const stockField = destination === "online_shop" ? "online_shop_stock" : "shop_stock";
-      const { error: updateError } = await supabase.from("products").update({
-        production_stock: Number(selectedProduct.production_stock) - qty,
-        [stockField]: Number(destination === "online_shop" ? (selectedProduct as any).online_shop_stock : selectedProduct.shop_stock) + qty,
-      }).eq("id", productId);
+      const updateData = destination === "online_shop"
+        ? {
+            production_stock: Number(selectedProduct.production_stock) - qty,
+            online_shop_stock: Number((selectedProduct as any).online_shop_stock ?? 0) + qty,
+          }
+        : {
+            production_stock: Number(selectedProduct.production_stock) - qty,
+            shop_stock: Number(selectedProduct.shop_stock) + qty,
+          };
+      const { error: updateError } = await supabase.from("products").update(updateData).eq("id", productId);
       if (updateError) throw updateError;
     },
     onSuccess: () => {

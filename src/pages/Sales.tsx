@@ -80,11 +80,11 @@ export default function Sales() {
       });
       if (insertError) throw insertError;
 
-      const stockField = saleSource === "online_shop" ? "online_shop_stock" : "shop_stock";
       const currentStock = saleSource === "online_shop" ? Number((selectedProduct as any).online_shop_stock ?? 0) : Number(selectedProduct.shop_stock);
-      const { error: updateError } = await supabase.from("products").update({
-        [stockField]: currentStock - qtySold,
-      }).eq("id", productId);
+      const updateData = saleSource === "online_shop"
+        ? { online_shop_stock: currentStock - qtySold }
+        : { shop_stock: currentStock - qtySold };
+      const { error: updateError } = await supabase.from("products").update(updateData).eq("id", productId);
       if (updateError) throw updateError;
     },
     onSuccess: () => {
