@@ -10,13 +10,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Ban, Pencil } from "lucide-react";
+import { Plus, Ban, Pencil, Receipt, Download } from "lucide-react";
 import { fmt } from "@/lib/stock-helpers";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { SaleReceipt } from "@/components/SaleReceipt";
+import { downloadCSV } from "@/lib/csv-export";
 
 export default function Sales() {
   const location = useLocation();
@@ -32,6 +34,7 @@ export default function Sales() {
   const [voidId, setVoidId] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [receiptSale, setReceiptSale] = useState<any>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -181,7 +184,16 @@ export default function Sales() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-foreground">Sales</h2>
-        <Button onClick={() => { resetForm(); setOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Sale</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => {
+            if (!filtered?.length) return;
+            downloadCSV("sales.csv",
+              ["Date", "Product", "Source", "Qty", "Revenue", "COGS", "Profit", "Type", "Voided"],
+              filtered.map((s: any) => [s.sale_date, `${s.products?.name} (${s.products?.bottle_size})`, s.sale_source, s.quantity_sold, s.total_revenue, s.total_cogs, s.profit, s.sale_type, s.voided ? "Yes" : "No"])
+            );
+          }}><Download className="mr-2 h-4 w-4" />Export</Button>
+          <Button onClick={() => { resetForm(); setOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Sale</Button>
+        </div>
       </div>
 
       <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} onClear={() => { setDateFrom(""); setDateTo(""); }} />
@@ -216,16 +228,21 @@ export default function Sales() {
                   <TableCell className={Number(s.profit) >= 0 ? "text-emerald-600" : "text-destructive"}>{fmt(s.profit)}</TableCell>
                   <TableCell><Badge variant="outline">{s.voided ? "VOIDED" : s.sale_type}</Badge></TableCell>
                   <TableCell>
-                    {!s.voided && (
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" title="Edit" onClick={() => openEdit(s)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" title="Void" onClick={() => setVoidId(s.id)}>
-                          <Ban className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    )}
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" title="Receipt" onClick={() => setReceiptSale(s)}>
+                        <Receipt className="h-4 w-4" />
+                      </Button>
+                      {!s.voided && (
+                        <>
+                          <Button variant="ghost" size="icon" title="Edit" onClick={() => openEdit(s)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" title="Void" onClick={() => setVoidId(s.id)}>
+                            <Ban className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -316,6 +333,8 @@ export default function Sales() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <SaleReceipt open={!!receiptSale} onOpenChange={() => setReceiptSale(null)} sale={receiptSale} />
     </div>
   );
 }

@@ -4,6 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { fmt } from "@/lib/stock-helpers";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
+import { downloadCSV } from "@/lib/csv-export";
 
 export default function ProfitLoss() {
   const [from, setFrom] = useState(() => {
@@ -55,7 +58,23 @@ export default function ProfitLoss() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-2xl font-bold text-foreground">Profit & Loss</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-foreground">Profit & Loss</h2>
+        <Button variant="outline" onClick={() => {
+          const rows: (string | number)[][] = [
+            ["Revenue", totalRevenue],
+            ["COGS", totalCOGS],
+            ["Gross Profit", grossProfit],
+            ["Total Expenses", totalExpenses],
+            ["Gift Costs", totalGiftCost],
+            ["Net Profit", netProfit],
+            [],
+            ["--- Expenses by Category ---", ""],
+            ...Object.entries(expenseByCategory).sort((a, b) => b[1] - a[1]).map(([cat, amt]) => [cat, amt]),
+          ];
+          downloadCSV(`profit-loss_${from}_${to}.csv`, ["Item", "Amount (₦)"], rows);
+        }}><Download className="mr-2 h-4 w-4" />Export</Button>
+      </div>
 
       <div className="flex items-center gap-3">
         <div>
