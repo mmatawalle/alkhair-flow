@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertTriangle, DollarSign, TrendingUp, ArrowRightLeft, Plus, Truck, Receipt, Gift } from "lucide-react";
 import { StockBadge, getProductStockLevel, getStockLevel, fmt } from "@/lib/stock-helpers";
