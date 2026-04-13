@@ -10,13 +10,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const REASONS = ["family", "friend", "promo", "VIP", "house_use"];
 
 export default function Gifts() {
   const location = useLocation();
   const [open, setOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [productId, setProductId] = useState("");
   const [sourceLocation, setSourceLocation] = useState("shop");
   const [qty, setQty] = useState(0);
@@ -58,26 +63,17 @@ export default function Gifts() {
     mutationFn: async () => {
       if (!selectedProduct) throw new Error("Select a product");
       if (qty <= 0) throw new Error("Quantity must be > 0");
-      if (qty > availableStock) {
-        throw new Error(`Not enough stock. Available: ${availableStock}`);
-      }
+      if (qty > availableStock) throw new Error(`Not enough stock. Available: ${availableStock}`);
 
       const { error: insertError } = await supabase.from("gift_records").insert({
-        product_id: productId,
-        source_location: sourceLocation,
-        quantity: qty,
-        gift_date: giftDate,
-        recipient: recipient || null,
-        reason_category: reason,
-        note: note || null,
+        product_id: productId, source_location: sourceLocation, quantity: qty,
+        gift_date: giftDate, recipient: recipient || null, reason_category: reason, note: note || null,
       });
       if (insertError) throw insertError;
 
-      // Use explicit update object to avoid TS computed property issue
       const updateData = sourceLocation === "production"
         ? { production_stock: Number(selectedProduct.production_stock) - qty }
         : { shop_stock: Number(selectedProduct.shop_stock) - qty };
-
       const { error: updateError } = await supabase.from("products").update(updateData).eq("id", productId);
       if (updateError) throw updateError;
     },
@@ -87,6 +83,32 @@ export default function Gifts() {
       setOpen(false);
       setProductId(""); setQty(0); setRecipient(""); setNote("");
       toast({ title: "Gift recorded ✓" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const gift = gifts?.find(g => g.id === id);
+      if (!gift) throw new Error("Gift not found");
+
+      // Restore stock
+      const product = products?.find(p => p.id === gift.product_id);
+      if (product) {
+        const updateData = gift.source_location === "production"
+          ? { production_stock: Number(product.production_stock) + Number(gift.quantity) }
+          : { shop_stock: Number(product.shop_stock) + Number(gift.quantity) };
+        await supabase.from("products").update(updateData).eq("id", gift.product_id);
+      }
+
+      const { error } = await supabase.from("gift_records").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["gift_records"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+      setDeleteId(null);
+      toast({ title: "Gift deleted & stock restored ✓" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -109,11 +131,12 @@ export default function Gifts() {
                 <TableHead>Qty</TableHead>
                 <TableHead>Recipient</TableHead>
                 <TableHead>Reason</TableHead>
+                <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center">Loading...</TableCell></TableRow>
               ) : gifts?.map((g: any) => (
                 <TableRow key={g.id}>
                   <TableCell>{g.gift_date}</TableCell>
@@ -122,6 +145,11 @@ export default function Gifts() {
                   <TableCell>{g.quantity}</TableCell>
                   <TableCell>{g.recipient || "—"}</TableCell>
                   <TableCell className="capitalize">{g.reason_category?.replace(/_/g, " ")}</TableCell>
+                  <TableCell>
+                    <Button variant="ghost" size="icon" onClick={() => setDeleteId(g.id)}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -139,7 +167,6 @@ export default function Gifts() {
                 {products?.map(p => <SelectItem key={p.id} value={p.id}>{p.name} ({p.bottle_size})</SelectItem>)}
               </SelectContent>
             </Select>
-
             <div>
               <label className="text-sm text-muted-foreground">Take from</label>
               <Select value={sourceLocation} onValueChange={setSourceLocation}>
@@ -150,28 +177,36 @@ export default function Gifts() {
                 </SelectContent>
               </Select>
             </div>
-
             {selectedProduct && <p className="text-sm text-muted-foreground">Available: <strong>{availableStock}</strong></p>}
-
             <Input type="number" min={1} placeholder="Quantity" value={qty || ""} onChange={(e) => setQty(Number(e.target.value))} required />
             <Input type="date" value={giftDate} onChange={(e) => setGiftDate(e.target.value)} />
             <Input placeholder="Recipient (optional)" value={recipient} onChange={(e) => setRecipient(e.target.value)} />
-
             <Select value={reason} onValueChange={setReason}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {REASONS.map(r => <SelectItem key={r} value={r}>{r.replace(/_/g, " ")}</SelectItem>)}
               </SelectContent>
             </Select>
-
             <Input placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
-
             <DialogFooter>
               <Button type="submit" disabled={giftMutation.isPending}>{giftMutation.isPending ? "Saving..." : "Add Gift"}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this gift record?</AlertDialogTitle>
+            <AlertDialogDescription>Stock will be restored. This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteId && deleteMutation.mutate(deleteId)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

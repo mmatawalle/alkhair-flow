@@ -10,8 +10,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { fmt } from "@/lib/stock-helpers";
+import { DateRangeFilter } from "@/components/DateRangeFilter";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const CATEGORIES = ["general", "transport", "utility", "maintenance", "salary", "packaging", "fuel", "other"];
 const PAYMENT_NATURES = ["normal", "family_debt", "recoverable", "non_recoverable"];
@@ -19,12 +24,15 @@ const PAYMENT_NATURES = ["normal", "family_debt", "recoverable", "non_recoverabl
 export default function Expenses() {
   const location = useLocation();
   const [open, setOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [form, setForm] = useState({
     expense_side: "shop", category_code: "general", amount: 0,
     expense_date: new Date().toISOString().split("T")[0], description: "",
     requested_by: "", payment_nature: "normal", linked_item: "",
   });
   const [filterSide, setFilterSide] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -60,7 +68,22 @@ export default function Expenses() {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  const filtered = filterSide === "all" ? expenses : expenses?.filter(e => e.expense_side === filterSide);
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("expense_records").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["expense_records"] });
+      setDeleteId(null);
+      toast({ title: "Expense deleted ✓" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  let filtered = filterSide === "all" ? expenses : expenses?.filter(e => e.expense_side === filterSide);
+  if (dateFrom) filtered = filtered?.filter(e => e.expense_date >= dateFrom);
+  if (dateTo) filtered = filtered?.filter(e => e.expense_date <= dateTo);
 
   return (
     <div className="space-y-4">
@@ -69,12 +92,15 @@ export default function Expenses() {
         <Button onClick={() => setOpen(true)}><Plus className="mr-2 h-4 w-4" />Add Expense</Button>
       </div>
 
-      <div className="flex gap-2">
-        {["all", "shop", "production"].map(s => (
-          <Button key={s} variant={filterSide === s ? "default" : "outline"} size="sm" onClick={() => setFilterSide(s)} className="capitalize">
-            {s}
-          </Button>
-        ))}
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="flex gap-2">
+          {["all", "shop", "production"].map(s => (
+            <Button key={s} variant={filterSide === s ? "default" : "outline"} size="sm" onClick={() => setFilterSide(s)} className="capitalize">
+              {s}
+            </Button>
+          ))}
+        </div>
+        <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} onClear={() => { setDateFrom(""); setDateTo(""); }} />
       </div>
 
       <Card>
@@ -88,11 +114,12 @@ export default function Expenses() {
                 <TableHead>Amount</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Payment</TableHead>
+                <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center">Loading...</TableCell></TableRow>
               ) : filtered?.map((e) => (
                 <TableRow key={e.id}>
                   <TableCell>{e.expense_date}</TableCell>
@@ -101,6 +128,11 @@ export default function Expenses() {
                   <TableCell className="font-medium">{fmt(e.amount)}</TableCell>
                   <TableCell>{e.description || "—"}</TableCell>
                   <TableCell className="capitalize text-muted-foreground">{e.payment_nature?.replace(/_/g, " ")}</TableCell>
+                  <TableCell>
+                    <Button variant="ghost" size="icon" onClick={() => setDeleteId(e.id)}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -155,6 +187,19 @@ export default function Expenses() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this expense?</AlertDialogTitle>
+            <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteId && deleteMutation.mutate(deleteId)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -7,9 +7,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { StockBadge, getStockLevel, fmt } from "@/lib/stock-helpers";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type RawMaterial = Tables<"raw_materials">;
 
@@ -18,6 +22,7 @@ const emptyForm = { name: "", purchase_unit: "bag", usage_unit: "mudu", current_
 export default function RawMaterials() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<RawMaterial | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -31,13 +36,11 @@ export default function RawMaterials() {
     },
   });
 
-  // Get last purchase dates
   const { data: lastPurchases } = useQuery({
     queryKey: ["purchase_records", "latest"],
     queryFn: async () => {
       const { data, error } = await supabase.from("purchase_records").select("raw_material_id, purchase_date").order("purchase_date", { ascending: false });
       if (error) throw error;
-      // Group by material, keep first (latest)
       const map: Record<string, string> = {};
       data.forEach(p => { if (!map[p.raw_material_id]) map[p.raw_material_id] = p.purchase_date; });
       return map;
@@ -56,10 +59,21 @@ export default function RawMaterials() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["raw_materials"] });
-      setOpen(false);
-      setEditing(null);
-      setForm(emptyForm);
+      setOpen(false); setEditing(null); setForm(emptyForm);
       toast({ title: editing ? "Updated ✓" : "Added ✓" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("raw_materials").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["raw_materials"] });
+      setDeleteId(null);
+      toast({ title: "Deleted ✓" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -113,7 +127,12 @@ export default function RawMaterials() {
                         <span className="text-xs text-muted-foreground">{m.reorder_level}</span>
                       )}
                     </TableCell>
-                    <TableCell><Button variant="ghost" size="icon" onClick={() => openEdit(m)}><Pencil className="h-4 w-4" /></Button></TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(m)}><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => setDeleteId(m.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -147,6 +166,19 @@ export default function RawMaterials() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this raw material?</AlertDialogTitle>
+            <AlertDialogDescription>This will fail if the material is used in purchases or production records.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteId && deleteMutation.mutate(deleteId)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
