@@ -129,7 +129,7 @@ export default function Sales() {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  const activeSales = sales?.filter(s => !s.voided);
+  
 
   return (
     <div className="space-y-4">

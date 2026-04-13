@@ -119,8 +119,8 @@ export default function Products() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <StockBadge level={getProductStockLevel(Number((p as any).online_shop_stock ?? 0))} />
-                          <span>{(p as any).online_shop_stock ?? 0}</span>
+                          <StockBadge level={getProductStockLevel(Number(p.online_shop_stock))} />
+                          <span>{p.online_shop_stock}</span>
                         </div>
                       </TableCell>
                       <TableCell><Badge variant={p.is_active ? "default" : "secondary"}>{p.is_active ? "Active" : "Off"}</Badge></TableCell>
