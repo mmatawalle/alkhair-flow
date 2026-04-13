@@ -8,16 +8,21 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Pencil } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+const emptyForm = { raw_material_id: "", quantity_purchased: 0, purchase_unit: "", converted_quantity: 0, total_cost: 0, supplier: "", note: "", purchase_date: new Date().toISOString().split("T")[0] };
+
 export default function Purchases() {
   const [open, setOpen] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [form, setForm] = useState({ raw_material_id: "", quantity_purchased: 0, purchase_unit: "", converted_quantity: 0, total_cost: 0, supplier: "", note: "", purchase_date: new Date().toISOString().split("T")[0] });
+  const [form, setForm] = useState(emptyForm);
+  const [usedInProduction, setUsedInProduction] = useState(false);
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -42,37 +47,135 @@ export default function Purchases() {
   const selectedMaterial = materials?.find(m => m.id === form.raw_material_id);
   const costPerUsageUnit = form.converted_quantity > 0 ? form.total_cost / form.converted_quantity : 0;
 
-  const purchaseMutation = useMutation({
+  const checkUsedInProduction = async (materialId: string) => {
+    const { count } = await supabase.from("production_batch_items").select("id", { count: "exact", head: true }).eq("raw_material_id", materialId);
+    return (count ?? 0) > 0;
+  };
+
+  const openAdd = () => {
+    setEditId(null);
+    setForm(emptyForm);
+    setUsedInProduction(false);
+    setOpen(true);
+  };
+
+  const openEdit = async (p: any) => {
+    const used = await checkUsedInProduction(p.raw_material_id);
+    setUsedInProduction(used);
+    setEditId(p.id);
+    setForm({
+      raw_material_id: p.raw_material_id,
+      quantity_purchased: p.quantity_purchased,
+      purchase_unit: p.purchase_unit,
+      converted_quantity: p.converted_quantity,
+      total_cost: p.total_cost,
+      supplier: p.supplier || "",
+      note: p.note || "",
+      purchase_date: p.purchase_date,
+    });
+    setOpen(true);
+  };
+
+  // Recalculate average cost from ALL purchase records for a material
+  const recalcAvgCost = async (materialId: string, excludePurchaseId?: string) => {
+    const { data } = await supabase.from("purchase_records").select("converted_quantity, total_cost").eq("raw_material_id", materialId);
+    if (!data) return 0;
+    const rows = excludePurchaseId ? data.filter((r: any) => r.id !== excludePurchaseId) : data;
+    const totalQty = rows.reduce((s: number, r: any) => s + Number(r.converted_quantity), 0);
+    const totalCost = rows.reduce((s: number, r: any) => s + Number(r.total_cost), 0);
+    return totalQty > 0 ? totalCost / totalQty : 0;
+  };
+
+  const saveMutation = useMutation({
     mutationFn: async () => {
       if (!selectedMaterial) throw new Error("Select a material");
       if (form.converted_quantity <= 0) throw new Error("Converted quantity must be > 0");
       if (form.total_cost <= 0) throw new Error("Total cost must be > 0");
 
-      const { error: insertError } = await supabase.from("purchase_records").insert({
-        raw_material_id: form.raw_material_id, quantity_purchased: form.quantity_purchased,
-        purchase_unit: form.purchase_unit || selectedMaterial.purchase_unit,
-        converted_quantity: form.converted_quantity, total_cost: form.total_cost,
-        cost_per_usage_unit: costPerUsageUnit, purchase_date: form.purchase_date,
-        supplier: form.supplier || null, note: form.note || null,
-      });
-      if (insertError) throw insertError;
+      const mat = await supabase.from("raw_materials").select("*").eq("id", form.raw_material_id).single();
+      if (mat.error) throw mat.error;
+      const currentMat = mat.data;
 
-      const oldStock = Number(selectedMaterial.current_stock);
-      const oldAvg = Number(selectedMaterial.average_cost_per_usage_unit);
-      const newQty = form.converted_quantity;
-      const newAvg = (oldStock * oldAvg + form.total_cost) / (oldStock + newQty);
+      if (editId) {
+        // EDIT: reverse old, apply new
+        const oldPurchase = purchases?.find(p => p.id === editId);
+        if (!oldPurchase) throw new Error("Purchase not found");
 
-      const { error: updateError } = await supabase.from("raw_materials").update({
-        current_stock: oldStock + newQty, average_cost_per_usage_unit: newAvg,
-      }).eq("id", selectedMaterial.id);
-      if (updateError) throw updateError;
+        const oldConv = Number(oldPurchase.converted_quantity);
+        const newConv = form.converted_quantity;
+        const stockDiff = newConv - oldConv;
+
+        // If material changed, handle both old and new materials
+        if (oldPurchase.raw_material_id !== form.raw_material_id) {
+          // Reverse old material stock
+          const oldMat = await supabase.from("raw_materials").select("*").eq("id", oldPurchase.raw_material_id).single();
+          if (oldMat.data) {
+            const oldMatStock = Math.max(0, Number(oldMat.data.current_stock) - oldConv);
+            await supabase.from("raw_materials").update({ current_stock: oldMatStock }).eq("id", oldPurchase.raw_material_id);
+          }
+          // Add to new material
+          const newStock = Number(currentMat.current_stock) + newConv;
+          await supabase.from("raw_materials").update({ current_stock: newStock }).eq("id", form.raw_material_id);
+        } else {
+          // Same material: adjust stock by difference
+          const newStock = Math.max(0, Number(currentMat.current_stock) + stockDiff);
+          await supabase.from("raw_materials").update({ current_stock: newStock }).eq("id", form.raw_material_id);
+        }
+
+        // Update purchase record
+        const { error } = await supabase.from("purchase_records").update({
+          raw_material_id: form.raw_material_id,
+          quantity_purchased: form.quantity_purchased,
+          purchase_unit: form.purchase_unit,
+          converted_quantity: form.converted_quantity,
+          total_cost: form.total_cost,
+          cost_per_usage_unit: costPerUsageUnit,
+          purchase_date: form.purchase_date,
+          supplier: form.supplier || null,
+          note: form.note || null,
+        }).eq("id", editId);
+        if (error) throw error;
+
+        // Recalc avg cost for affected materials
+        const newAvg = await recalcAvgCost(form.raw_material_id);
+        await supabase.from("raw_materials").update({ average_cost_per_usage_unit: newAvg }).eq("id", form.raw_material_id);
+
+        if (oldPurchase.raw_material_id !== form.raw_material_id) {
+          const oldAvg = await recalcAvgCost(oldPurchase.raw_material_id);
+          await supabase.from("raw_materials").update({ average_cost_per_usage_unit: oldAvg }).eq("id", oldPurchase.raw_material_id);
+        }
+      } else {
+        // NEW purchase
+        const { error: insertError } = await supabase.from("purchase_records").insert({
+          raw_material_id: form.raw_material_id,
+          quantity_purchased: form.quantity_purchased,
+          purchase_unit: form.purchase_unit || currentMat.purchase_unit,
+          converted_quantity: form.converted_quantity,
+          total_cost: form.total_cost,
+          cost_per_usage_unit: costPerUsageUnit,
+          purchase_date: form.purchase_date,
+          supplier: form.supplier || null,
+          note: form.note || null,
+        });
+        if (insertError) throw insertError;
+
+        const oldStock = Number(currentMat.current_stock);
+        const oldAvg = Number(currentMat.average_cost_per_usage_unit);
+        const newAvg = (oldStock * oldAvg + form.total_cost) / (oldStock + form.converted_quantity);
+
+        await supabase.from("raw_materials").update({
+          current_stock: oldStock + form.converted_quantity,
+          average_cost_per_usage_unit: newAvg,
+        }).eq("id", form.raw_material_id);
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["purchase_records"] });
       qc.invalidateQueries({ queryKey: ["raw_materials"] });
       setOpen(false);
-      setForm({ raw_material_id: "", quantity_purchased: 0, purchase_unit: "", converted_quantity: 0, total_cost: 0, supplier: "", note: "", purchase_date: new Date().toISOString().split("T")[0] });
-      toast({ title: "Purchase recorded ✓" });
+      setEditId(null);
+      setForm(emptyForm);
+      toast({ title: editId ? "Purchase updated ✓" : "Purchase recorded ✓" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -82,15 +185,19 @@ export default function Purchases() {
       const purchase = purchases?.find(p => p.id === id);
       if (!purchase) throw new Error("Purchase not found");
 
-      // Reverse stock addition
-      const mat = materials?.find(m => m.id === purchase.raw_material_id);
-      if (mat) {
-        const newStock = Math.max(0, Number(mat.current_stock) - Number(purchase.converted_quantity));
-        await supabase.from("raw_materials").update({ current_stock: newStock }).eq("id", mat.id);
+      // Reverse stock
+      const mat = await supabase.from("raw_materials").select("*").eq("id", purchase.raw_material_id).single();
+      if (mat.data) {
+        const newStock = Math.max(0, Number(mat.data.current_stock) - Number(purchase.converted_quantity));
+        await supabase.from("raw_materials").update({ current_stock: newStock }).eq("id", mat.data.id);
       }
 
       const { error } = await supabase.from("purchase_records").delete().eq("id", id);
       if (error) throw error;
+
+      // Recalc avg cost
+      const newAvg = await recalcAvgCost(purchase.raw_material_id, id);
+      await supabase.from("raw_materials").update({ average_cost_per_usage_unit: newAvg }).eq("id", purchase.raw_material_id);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["purchase_records"] });
@@ -101,13 +208,19 @@ export default function Purchases() {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  const handleDeleteClick = async (p: any) => {
+    const used = await checkUsedInProduction(p.raw_material_id);
+    setUsedInProduction(used);
+    setDeleteId(p.id);
+  };
+
   const fmt = (n: number) => `₦${Number(n).toLocaleString()}`;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-foreground">Purchases</h2>
-        <Button onClick={() => setOpen(true)}><Plus className="mr-2 h-4 w-4" />Record Purchase</Button>
+        <Button onClick={openAdd}><Plus className="mr-2 h-4 w-4" />Record Purchase</Button>
       </div>
 
       <Card>
@@ -120,9 +233,9 @@ export default function Purchases() {
                 <TableHead>Qty Purchased</TableHead>
                 <TableHead>Converted Qty</TableHead>
                 <TableHead>Total Cost</TableHead>
-                <TableHead>Cost/Usage Unit</TableHead>
+                <TableHead>Cost/Unit</TableHead>
                 <TableHead>Supplier</TableHead>
-                <TableHead></TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -137,8 +250,11 @@ export default function Purchases() {
                   <TableCell>{fmt(p.total_cost)}</TableCell>
                   <TableCell>{fmt(p.cost_per_usage_unit)}</TableCell>
                   <TableCell>{p.supplier || "—"}</TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="icon" onClick={() => setDeleteId(p.id)}>
+                  <TableCell className="text-right space-x-1">
+                    <Button variant="ghost" size="icon" onClick={() => openEdit(p)} title="Edit">
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(p)} title="Delete">
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </TableCell>
@@ -149,10 +265,18 @@ export default function Purchases() {
         </CardContent>
       </Card>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      {/* Add / Edit Dialog */}
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditId(null); setForm(emptyForm); } }}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>Record Purchase</DialogTitle></DialogHeader>
-          <form onSubmit={(e) => { e.preventDefault(); purchaseMutation.mutate(); }} className="space-y-3">
+          <DialogHeader><DialogTitle>{editId ? "Edit Purchase" : "Record Purchase"}</DialogTitle></DialogHeader>
+
+          {usedInProduction && editId && (
+            <Alert variant="destructive" className="mb-2">
+              <AlertDescription>⚠️ This material has been used in production. Editing may affect production costs and stock.</AlertDescription>
+            </Alert>
+          )}
+
+          <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }} className="space-y-3">
             <Select value={form.raw_material_id} onValueChange={(v) => {
               const mat = materials?.find(m => m.id === v);
               setForm({ ...form, raw_material_id: v, purchase_unit: mat?.purchase_unit || "" });
@@ -189,17 +313,23 @@ export default function Purchases() {
             <Input placeholder="Supplier (optional)" value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} />
             <Input placeholder="Note (optional)" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
             <DialogFooter>
-              <Button type="submit" disabled={purchaseMutation.isPending}>{purchaseMutation.isPending ? "Saving..." : "Record Purchase"}</Button>
+              <Button type="submit" disabled={saveMutation.isPending}>{saveMutation.isPending ? "Saving..." : editId ? "Update Purchase" : "Record Purchase"}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
+      {/* Delete Confirmation */}
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this purchase?</AlertDialogTitle>
-            <AlertDialogDescription>Stock will be reversed. This cannot be undone.</AlertDialogDescription>
+            <AlertDialogDescription>
+              Stock will be reversed and average cost recalculated. This cannot be undone.
+              {usedInProduction && (
+                <span className="block mt-2 font-semibold text-destructive">⚠️ This material has been used in production. Deleting may affect production cost accuracy.</span>
+              )}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
