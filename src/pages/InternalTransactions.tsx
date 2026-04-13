@@ -148,11 +148,13 @@ export default function InternalTransactions() {
         <Button onClick={() => setOpen(true)}><Plus className="mr-2 h-4 w-4" />Add Transaction</Button>
       </div>
 
-      <div className="flex gap-2">
-        {["all", "pending", "settled"].map(s => (
-          <Button key={s} variant={filterStatus === s ? "default" : "outline"} size="sm" onClick={() => setFilterStatus(s)} className="capitalize">
-            {s}
-          </Button>
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="flex gap-2">
+          {["all", "pending", "settled"].map(s => (
+            <Button key={s} variant={filterStatus === s ? "default" : "outline"} size="sm" onClick={() => setFilterStatus(s)} className="capitalize">
+              {s}
+            </Button>
+          ))}
         </div>
         <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} onClear={() => { setDateFrom(""); setDateTo(""); }} />
       </div>
