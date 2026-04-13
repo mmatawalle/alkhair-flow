@@ -106,12 +106,16 @@ export type Database = {
       internal_transactions: {
         Row: {
           amount: number | null
+          amount_settled: number | null
           created_at: string
+          date_settled: string | null
           given_by: string | null
           id: string
           note: string | null
           product_id: string | null
           quantity: number | null
+          received_by: string | null
+          settlement_method: string | null
           source_location: string
           status: string
           taken_by: string | null
@@ -122,12 +126,16 @@ export type Database = {
         }
         Insert: {
           amount?: number | null
+          amount_settled?: number | null
           created_at?: string
+          date_settled?: string | null
           given_by?: string | null
           id?: string
           note?: string | null
           product_id?: string | null
           quantity?: number | null
+          received_by?: string | null
+          settlement_method?: string | null
           source_location?: string
           status?: string
           taken_by?: string | null
@@ -138,12 +146,16 @@ export type Database = {
         }
         Update: {
           amount?: number | null
+          amount_settled?: number | null
           created_at?: string
+          date_settled?: string | null
           given_by?: string | null
           id?: string
           note?: string | null
           product_id?: string | null
           quantity?: number | null
+          received_by?: string | null
+          settlement_method?: string | null
           source_location?: string
           status?: string
           taken_by?: string | null
@@ -206,6 +218,51 @@ export type Database = {
             columns: ["raw_material_id"]
             isOneToOne: false
             referencedRelation: "raw_materials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      production_batch_products: {
+        Row: {
+          cost_per_unit: number
+          created_at: string
+          id: string
+          product_id: string
+          production_batch_id: string
+          quantity_produced: number
+          updated_at: string
+        }
+        Insert: {
+          cost_per_unit?: number
+          created_at?: string
+          id?: string
+          product_id: string
+          production_batch_id: string
+          quantity_produced: number
+          updated_at?: string
+        }
+        Update: {
+          cost_per_unit?: number
+          created_at?: string
+          id?: string
+          product_id?: string
+          production_batch_id?: string
+          quantity_produced?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_batch_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_batch_products_production_batch_id_fkey"
+            columns: ["production_batch_id"]
+            isOneToOne: false
+            referencedRelation: "production_batches"
             referencedColumns: ["id"]
           },
         ]
