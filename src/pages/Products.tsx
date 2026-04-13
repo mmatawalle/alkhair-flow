@@ -3,13 +3,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Pencil } from "lucide-react";
+import { StockBadge, getProductStockLevel, fmt } from "@/lib/stock-helpers";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Product = Tables<"products">;
@@ -26,7 +27,7 @@ export default function Products() {
   const { data: products, isLoading } = useQuery({
     queryKey: ["products"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("products").select("*").order("name");
+      const { data, error } = await supabase.from("products").select("*").order("category").order("name");
       if (error) throw error;
       return data;
     },
@@ -47,7 +48,7 @@ export default function Products() {
       setOpen(false);
       setEditing(null);
       setForm(emptyForm);
-      toast({ title: "Saved", description: "Product saved." });
+      toast({ title: "Saved ✓" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -58,7 +59,13 @@ export default function Products() {
     setOpen(true);
   };
 
-  const fmt = (n: number) => `₦${Number(n).toLocaleString()}`;
+  // Group by category
+  const grouped = products?.reduce<Record<string, Product[]>>((acc, p) => {
+    const cat = p.category || "other";
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(p);
+    return acc;
+  }, {}) ?? {};
 
   return (
     <div className="space-y-4">
@@ -67,44 +74,60 @@ export default function Products() {
         <Button onClick={() => { setEditing(null); setForm(emptyForm); setOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Product</Button>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Size</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Selling Price</TableHead>
-                <TableHead>Prod. Stock</TableHead>
-                <TableHead>Shop Stock</TableHead>
-                <TableHead>Cost/Unit</TableHead>
-                <TableHead>Profit/Unit</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow><TableCell colSpan={10} className="text-center">Loading...</TableCell></TableRow>
-              ) : products?.map((p) => (
-                <TableRow key={p.id}>
-                  <TableCell className="font-medium">{p.name}</TableCell>
-                  <TableCell>{p.bottle_size}</TableCell>
-                  <TableCell>{p.category}</TableCell>
-                  <TableCell>{fmt(p.selling_price)}</TableCell>
-                  <TableCell>{p.production_stock}</TableCell>
-                  <TableCell>{p.shop_stock}</TableCell>
-                  <TableCell>{fmt(p.average_cost_per_unit)}</TableCell>
-                  <TableCell>{fmt(p.selling_price - p.average_cost_per_unit)}</TableCell>
-                  <TableCell><Badge variant={p.is_active ? "default" : "secondary"}>{p.is_active ? "Active" : "Inactive"}</Badge></TableCell>
-                  <TableCell><Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button></TableCell>
+      {isLoading ? (
+        <p className="text-muted-foreground">Loading...</p>
+      ) : Object.entries(grouped).map(([category, items]) => (
+        <Card key={category}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base capitalize">{category}s</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Size</TableHead>
+                  <TableHead>Price</TableHead>
+                  <TableHead>Prod. Stock</TableHead>
+                  <TableHead>Shop Stock</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Cost/Unit</TableHead>
+                  <TableHead>Margin</TableHead>
+                  <TableHead></TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              </TableHeader>
+              <TableBody>
+                {items.map(p => {
+                  const margin = p.selling_price - p.average_cost_per_unit;
+                  return (
+                    <TableRow key={p.id}>
+                      <TableCell className="font-medium">{p.name}</TableCell>
+                      <TableCell>{p.bottle_size}</TableCell>
+                      <TableCell>{fmt(p.selling_price)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <StockBadge level={getProductStockLevel(Number(p.production_stock))} />
+                          <span>{p.production_stock}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <StockBadge level={getProductStockLevel(Number(p.shop_stock))} />
+                          <span>{p.shop_stock}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell><Badge variant={p.is_active ? "default" : "secondary"}>{p.is_active ? "Active" : "Off"}</Badge></TableCell>
+                      <TableCell>{fmt(p.average_cost_per_unit)}</TableCell>
+                      <TableCell className={margin >= 0 ? "text-emerald-600" : "text-destructive"}>{fmt(margin)}</TableCell>
+                      <TableCell><Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button></TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      ))}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>

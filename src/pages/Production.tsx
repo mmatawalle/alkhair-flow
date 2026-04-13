@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2 } from "lucide-react";
+import { fmt } from "@/lib/stock-helpers";
 
 interface MaterialUsage {
   raw_material_id: string;
@@ -52,7 +53,7 @@ export default function Production() {
     },
   });
 
-  // Calculate total batch cost
+  // Calculate total batch cost from ACTUAL materials used
   const totalBatchCost = usages.reduce((sum, u) => {
     const mat = materials?.find(m => m.id === u.raw_material_id);
     return sum + (u.quantity_used * Number(mat?.average_cost_per_usage_unit || 0));
@@ -61,21 +62,22 @@ export default function Production() {
 
   const batchMutation = useMutation({
     mutationFn: async () => {
-      if (!productId) throw new Error("Select a product");
-      if (qtyProduced <= 0) throw new Error("Quantity must be > 0");
-      if (usages.length === 0) throw new Error("Add at least one material");
+      if (!productId) throw new Error("Choose a product");
+      if (qtyProduced <= 0) throw new Error("Enter quantity produced");
+      if (usages.length === 0) throw new Error("Add materials used");
 
-      // Validate stock availability
+      // Validate all materials have stock
       for (const u of usages) {
+        if (!u.raw_material_id) throw new Error("Select all materials");
+        if (u.quantity_used <= 0) throw new Error("Enter quantity for all materials");
         const mat = materials?.find(m => m.id === u.raw_material_id);
         if (!mat) throw new Error("Invalid material");
         if (u.quantity_used > Number(mat.current_stock)) {
-          throw new Error(`Not enough ${mat.name} in stock. Available: ${mat.current_stock} ${mat.usage_unit}`);
+          throw new Error(`Not enough ${mat.name}. Available: ${mat.current_stock} ${mat.usage_unit}`);
         }
       }
 
-      // Generate batch code
-      const batchCode = `BATCH-${Date.now().toString(36).toUpperCase()}`;
+      const batchCode = `B-${Date.now().toString(36).toUpperCase()}`;
 
       // Insert batch
       const { data: batch, error: batchError } = await supabase.from("production_batches").insert({
@@ -89,7 +91,7 @@ export default function Production() {
       }).select().single();
       if (batchError) throw batchError;
 
-      // Insert batch items
+      // Insert batch items with actual costs
       const items = usages.map(u => {
         const mat = materials!.find(m => m.id === u.raw_material_id)!;
         const unitCost = Number(mat.average_cost_per_usage_unit);
@@ -113,18 +115,18 @@ export default function Production() {
         if (error) throw error;
       }
 
-      // Update product: add to production_stock, update costs
+      // Update product stock and costs (weighted average)
       const product = products!.find(p => p.id === productId)!;
-      const oldProdStock = Number(product.production_stock);
-      const oldAvgCost = Number(product.average_cost_per_unit);
-      const newAvgCost = oldProdStock + Number(product.shop_stock) > 0
-        ? ((oldProdStock + Number(product.shop_stock)) * oldAvgCost + totalBatchCost) / ((oldProdStock + Number(product.shop_stock)) + qtyProduced)
+      const totalExisting = Number(product.production_stock) + Number(product.shop_stock);
+      const oldAvg = Number(product.average_cost_per_unit);
+      const newAvg = totalExisting > 0
+        ? ((totalExisting * oldAvg) + totalBatchCost) / (totalExisting + qtyProduced)
         : costPerUnit;
 
       const { error: prodError } = await supabase.from("products").update({
-        production_stock: oldProdStock + qtyProduced,
+        production_stock: Number(product.production_stock) + qtyProduced,
         latest_cost_per_unit: costPerUnit,
-        average_cost_per_unit: newAvgCost,
+        average_cost_per_unit: newAvg,
       }).eq("id", productId);
       if (prodError) throw prodError;
     },
@@ -134,17 +136,14 @@ export default function Production() {
       qc.invalidateQueries({ queryKey: ["products"] });
       setOpen(false);
       resetForm();
-      toast({ title: "Batch recorded", description: "Production batch saved, materials deducted." });
+      toast({ title: "Batch recorded ✓", description: "Materials deducted, stock updated." });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
   const resetForm = () => {
-    setProductId("");
-    setQtyProduced(0);
+    setProductId(""); setQtyProduced(0); setNote(""); setUsages([]);
     setProdDate(new Date().toISOString().split("T")[0]);
-    setNote("");
-    setUsages([]);
   };
 
   const addUsage = () => setUsages([...usages, { raw_material_id: "", quantity_used: 0 }]);
@@ -155,13 +154,11 @@ export default function Production() {
     setUsages(updated);
   };
 
-  const fmt = (n: number) => `₦${Number(n).toLocaleString()}`;
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-foreground">Production Batches</h2>
-        <Button onClick={() => { resetForm(); setOpen(true); }}><Plus className="mr-2 h-4 w-4" />Record Batch</Button>
+        <h2 className="text-2xl font-bold text-foreground">Production</h2>
+        <Button onClick={() => { resetForm(); setOpen(true); }}><Plus className="mr-2 h-4 w-4" />New Batch</Button>
       </div>
 
       <Card>
@@ -170,9 +167,9 @@ export default function Production() {
             <TableHeader>
               <TableRow>
                 <TableHead>Date</TableHead>
-                <TableHead>Batch Code</TableHead>
+                <TableHead>Batch</TableHead>
                 <TableHead>Product</TableHead>
-                <TableHead>Qty Produced</TableHead>
+                <TableHead>Qty Made</TableHead>
                 <TableHead>Total Cost</TableHead>
                 <TableHead>Cost/Unit</TableHead>
               </TableRow>
@@ -183,7 +180,7 @@ export default function Production() {
               ) : batches?.map((b: any) => (
                 <TableRow key={b.id}>
                   <TableCell>{b.production_date}</TableCell>
-                  <TableCell className="font-mono text-sm">{b.batch_code}</TableCell>
+                  <TableCell className="font-mono text-xs">{b.batch_code}</TableCell>
                   <TableCell className="font-medium">{b.products?.name} ({b.products?.bottle_size})</TableCell>
                   <TableCell>{b.quantity_produced}</TableCell>
                   <TableCell>{fmt(b.total_batch_cost)}</TableCell>
@@ -197,22 +194,25 @@ export default function Production() {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Record Production Batch</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>New Production Batch</DialogTitle></DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); batchMutation.mutate(); }} className="space-y-4">
-            <Select value={productId} onValueChange={setProductId}>
-              <SelectTrigger><SelectValue placeholder="Select Product" /></SelectTrigger>
-              <SelectContent>
-                {products?.map(p => <SelectItem key={p.id} value={p.id}>{p.name} ({p.bottle_size})</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <div>
+              <label className="text-sm text-muted-foreground">What are you making?</label>
+              <Select value={productId} onValueChange={setProductId}>
+                <SelectTrigger><SelectValue placeholder="Choose product" /></SelectTrigger>
+                <SelectContent>
+                  {products?.map(p => <SelectItem key={p.id} value={p.id}>{p.name} ({p.bottle_size})</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-sm text-muted-foreground">Quantity Produced</label>
+                <label className="text-sm text-muted-foreground">How many?</label>
                 <Input type="number" min={1} value={qtyProduced || ""} onChange={(e) => setQtyProduced(Number(e.target.value))} required />
               </div>
               <div>
-                <label className="text-sm text-muted-foreground">Production Date</label>
+                <label className="text-sm text-muted-foreground">Date</label>
                 <Input type="date" value={prodDate} onChange={(e) => setProdDate(e.target.value)} />
               </div>
             </div>
@@ -220,8 +220,11 @@ export default function Production() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium">Materials Used</label>
-                <Button type="button" variant="outline" size="sm" onClick={addUsage}><Plus className="mr-1 h-3 w-3" />Add Material</Button>
+                <Button type="button" variant="outline" size="sm" onClick={addUsage}><Plus className="mr-1 h-3 w-3" />Add</Button>
               </div>
+              {usages.length === 0 && (
+                <p className="text-sm text-muted-foreground">Click "Add" to enter each material you used</p>
+              )}
               {usages.map((u, i) => {
                 const mat = materials?.find(m => m.id === u.raw_material_id);
                 return (
@@ -230,12 +233,12 @@ export default function Production() {
                       <Select value={u.raw_material_id} onValueChange={(v) => updateUsage(i, "raw_material_id", v)}>
                         <SelectTrigger><SelectValue placeholder="Material" /></SelectTrigger>
                         <SelectContent>
-                          {materials?.map(m => <SelectItem key={m.id} value={m.id}>{m.name} (avail: {m.current_stock} {m.usage_unit})</SelectItem>)}
+                          {materials?.map(m => <SelectItem key={m.id} value={m.id}>{m.name} ({m.current_stock} {m.usage_unit} left)</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="w-32">
-                      <Input type="number" step="any" min={0} placeholder={`Qty (${mat?.usage_unit || ""})`} value={u.quantity_used || ""} onChange={(e) => updateUsage(i, "quantity_used", Number(e.target.value))} />
+                    <div className="w-28">
+                      <Input type="number" step="any" min={0} placeholder={mat?.usage_unit || "qty"} value={u.quantity_used || ""} onChange={(e) => updateUsage(i, "quantity_used", Number(e.target.value))} />
                     </div>
                     <div className="w-24 text-sm text-muted-foreground pt-2">
                       {mat ? fmt(u.quantity_used * Number(mat.average_cost_per_usage_unit)) : "—"}
@@ -247,8 +250,8 @@ export default function Production() {
             </div>
 
             {usages.length > 0 && (
-              <div className="rounded-md bg-muted p-3 text-sm space-y-1">
-                <p>Total Batch Cost: <strong>{fmt(totalBatchCost)}</strong></p>
+              <div className="rounded-lg bg-muted p-3 text-sm space-y-1">
+                <p>Total Cost: <strong>{fmt(totalBatchCost)}</strong></p>
                 <p>Cost per Unit: <strong>{fmt(costPerUnit)}</strong></p>
               </div>
             )}

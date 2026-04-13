@@ -34,8 +34,8 @@ export function AppSidebar() {
     <Sidebar collapsible="icon">
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>
-            {!collapsed && "Al-Khair Operations"}
+          <SidebarGroupLabel className="text-sidebar-primary font-bold tracking-wide">
+            {!collapsed && "Al-Khair"}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -44,7 +44,7 @@ export function AppSidebar() {
                   <SidebarMenuButton asChild isActive={
                     item.url === "/" ? location.pathname === "/" : location.pathname.startsWith(item.url)
                   }>
-                    <NavLink to={item.url} end={item.url === "/"} className="hover:bg-muted/50" activeClassName="bg-muted text-primary font-medium">
+                    <NavLink to={item.url} end={item.url === "/"}>
                       <item.icon className="mr-2 h-4 w-4" />
                       {!collapsed && <span>{item.title}</span>}
                     </NavLink>
@@ -56,7 +56,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <Button variant="ghost" size="sm" onClick={signOut} className="w-full justify-start">
+        <Button variant="ghost" size="sm" onClick={signOut} className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground">
           <LogOut className="mr-2 h-4 w-4" />
           {!collapsed && "Sign Out"}
         </Button>

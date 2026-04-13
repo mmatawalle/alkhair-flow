@@ -3,12 +3,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Pencil } from "lucide-react";
+import { StockBadge, getStockLevel, fmt } from "@/lib/stock-helpers";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 
 type RawMaterial = Tables<"raw_materials">;
@@ -31,6 +31,19 @@ export default function RawMaterials() {
     },
   });
 
+  // Get last purchase dates
+  const { data: lastPurchases } = useQuery({
+    queryKey: ["purchase_records", "latest"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("purchase_records").select("raw_material_id, purchase_date").order("purchase_date", { ascending: false });
+      if (error) throw error;
+      // Group by material, keep first (latest)
+      const map: Record<string, string> = {};
+      data.forEach(p => { if (!map[p.raw_material_id]) map[p.raw_material_id] = p.purchase_date; });
+      return map;
+    },
+  });
+
   const saveMutation = useMutation({
     mutationFn: async (values: typeof form) => {
       if (editing) {
@@ -46,7 +59,7 @@ export default function RawMaterials() {
       setOpen(false);
       setEditing(null);
       setForm(emptyForm);
-      toast({ title: editing ? "Updated" : "Added", description: "Raw material saved." });
+      toast({ title: editing ? "Updated ✓" : "Added ✓" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -57,19 +70,11 @@ export default function RawMaterials() {
     setOpen(true);
   };
 
-  const openNew = () => { setEditing(null); setForm(emptyForm); setOpen(true); };
-
-  const stockStatus = (m: RawMaterial) => {
-    if (m.current_stock <= m.reorder_level * 0.5) return <Badge variant="destructive">Low</Badge>;
-    if (m.current_stock <= m.reorder_level) return <Badge variant="secondary">Medium</Badge>;
-    return <Badge className="bg-green-100 text-green-800 border-green-200">High</Badge>;
-  };
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-foreground">Raw Materials</h2>
-        <Button onClick={openNew}><Plus className="mr-2 h-4 w-4" />Add Material</Button>
+        <Button onClick={() => { setEditing(null); setForm(emptyForm); setOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Material</Button>
       </div>
 
       <Card>
@@ -77,29 +82,41 @@ export default function RawMaterials() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Purchase Unit</TableHead>
-                <TableHead>Usage Unit</TableHead>
-                <TableHead>Stock</TableHead>
-                <TableHead>Avg Cost/Unit</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Stock</TableHead>
+                <TableHead>Unit</TableHead>
+                <TableHead>Avg Cost</TableHead>
+                <TableHead>Last Purchase</TableHead>
+                <TableHead>Reorder</TableHead>
                 <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={7} className="text-center">Loading...</TableCell></TableRow>
-              ) : materials?.map((m) => (
-                <TableRow key={m.id}>
-                  <TableCell className="font-medium">{m.name}</TableCell>
-                  <TableCell>{m.purchase_unit}</TableCell>
-                  <TableCell>{m.usage_unit}</TableCell>
-                  <TableCell>{m.current_stock} {m.usage_unit}</TableCell>
-                  <TableCell>₦{Number(m.average_cost_per_usage_unit).toLocaleString()}</TableCell>
-                  <TableCell>{stockStatus(m)}</TableCell>
-                  <TableCell><Button variant="ghost" size="icon" onClick={() => openEdit(m)}><Pencil className="h-4 w-4" /></Button></TableCell>
-                </TableRow>
-              ))}
+                <TableRow><TableCell colSpan={8} className="text-center">Loading...</TableCell></TableRow>
+              ) : materials?.map((m) => {
+                const level = getStockLevel(Number(m.current_stock), Number(m.reorder_level));
+                const needsReorder = level !== "available";
+                return (
+                  <TableRow key={m.id}>
+                    <TableCell><StockBadge level={level} /></TableCell>
+                    <TableCell className="font-medium">{m.name}</TableCell>
+                    <TableCell className="font-semibold">{m.current_stock} {m.usage_unit}</TableCell>
+                    <TableCell className="text-muted-foreground">{m.purchase_unit} → {m.usage_unit}</TableCell>
+                    <TableCell>{fmt(m.average_cost_per_usage_unit)}/{m.usage_unit}</TableCell>
+                    <TableCell className="text-muted-foreground">{lastPurchases?.[m.id] || "—"}</TableCell>
+                    <TableCell>
+                      {needsReorder ? (
+                        <span className="text-xs text-amber-600 font-medium">Reorder now</span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">{m.reorder_level}</span>
+                      )}
+                    </TableCell>
+                    <TableCell><Button variant="ghost" size="icon" onClick={() => openEdit(m)}><Pencil className="h-4 w-4" /></Button></TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>
@@ -111,8 +128,8 @@ export default function RawMaterials() {
           <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(form); }} className="space-y-3">
             <Input placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
             <div className="grid grid-cols-2 gap-3">
-              <Input placeholder="Purchase Unit" value={form.purchase_unit} onChange={(e) => setForm({ ...form, purchase_unit: e.target.value })} required />
-              <Input placeholder="Usage Unit" value={form.usage_unit} onChange={(e) => setForm({ ...form, usage_unit: e.target.value })} required />
+              <Input placeholder="Purchase Unit (e.g. bag)" value={form.purchase_unit} onChange={(e) => setForm({ ...form, purchase_unit: e.target.value })} required />
+              <Input placeholder="Usage Unit (e.g. mudu)" value={form.usage_unit} onChange={(e) => setForm({ ...form, usage_unit: e.target.value })} required />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
