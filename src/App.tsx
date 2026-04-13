@@ -15,6 +15,7 @@ import Transfers from "./pages/Transfers";
 import Sales from "./pages/Sales";
 import Expenses from "./pages/Expenses";
 import Gifts from "./pages/Gifts";
+import InternalTransactions from "./pages/InternalTransactions";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
