@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { StockBadge, getStockLevel, fmt } from "@/lib/stock-helpers";
+import { useSortableTable } from "@/hooks/use-sortable-table";
+import { SortableTableHead } from "@/components/SortableTableHead";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -16,6 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 type RawMaterial = Tables<"raw_materials">;
+type StockFilter = "all" | "available" | "low" | "finished";
 
 const emptyForm = { name: "", purchase_unit: "bag", usage_unit: "mudu", current_stock: 0, average_cost_per_usage_unit: 0, reorder_level: 10 };
 
@@ -24,6 +27,8 @@ export default function RawMaterials() {
   const [editing, setEditing] = useState<RawMaterial | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [stockFilter, setStockFilter] = useState<StockFilter>("all");
+  const [nameFilter, setNameFilter] = useState("");
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -46,6 +51,24 @@ export default function RawMaterials() {
       return map;
     },
   });
+
+  // Enrich with stock level
+  const enriched = useMemo(() =>
+    materials?.map(m => ({
+      ...m,
+      stock_level: getStockLevel(Number(m.current_stock), Number(m.reorder_level)),
+    })) ?? []
+  , [materials]);
+
+  // Filter
+  const filtered = useMemo(() => {
+    let list = enriched;
+    if (stockFilter !== "all") list = list.filter(m => m.stock_level === stockFilter);
+    if (nameFilter) list = list.filter(m => m.name.toLowerCase().includes(nameFilter.toLowerCase()));
+    return list;
+  }, [enriched, stockFilter, nameFilter]);
+
+  const { sort, toggleSort, sorted } = useSortableTable(filtered, { key: "name", direction: "asc" });
 
   const saveMutation = useMutation({
     mutationFn: async (values: typeof form) => {
@@ -91,30 +114,41 @@ export default function RawMaterials() {
         <Button onClick={() => { setEditing(null); setForm(emptyForm); setOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Material</Button>
       </div>
 
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Input placeholder="Search by name..." value={nameFilter} onChange={e => setNameFilter(e.target.value)} className="w-48" />
+        <div className="flex gap-1">
+          {(["all", "available", "low", "finished"] as StockFilter[]).map(s => (
+            <Button key={s} size="sm" variant={stockFilter === s ? "default" : "outline"} onClick={() => setStockFilter(s)} className="capitalize text-xs">
+              {s === "all" ? "All" : s}
+            </Button>
+          ))}
+        </div>
+      </div>
+
       <Card>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Status</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Stock</TableHead>
+                <SortableTableHead label="Name" sortKey="name" sort={sort} onToggle={toggleSort} />
+                <SortableTableHead label="Stock" sortKey="current_stock" sort={sort} onToggle={toggleSort} />
                 <TableHead>Unit</TableHead>
-                <TableHead>Avg Cost</TableHead>
+                <SortableTableHead label="Avg Cost" sortKey="average_cost_per_usage_unit" sort={sort} onToggle={toggleSort} />
                 <TableHead>Last Purchase</TableHead>
-                <TableHead>Reorder</TableHead>
+                <SortableTableHead label="Reorder" sortKey="reorder_level" sort={sort} onToggle={toggleSort} />
                 <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow><TableCell colSpan={8} className="text-center">Loading...</TableCell></TableRow>
-              ) : materials?.map((m) => {
-                const level = getStockLevel(Number(m.current_stock), Number(m.reorder_level));
-                const needsReorder = level !== "available";
+              ) : sorted.map((m) => {
+                const needsReorder = m.stock_level !== "available";
                 return (
                   <TableRow key={m.id}>
-                    <TableCell><StockBadge level={level} /></TableCell>
+                    <TableCell><StockBadge level={m.stock_level} /></TableCell>
                     <TableCell className="font-medium">{m.name}</TableCell>
                     <TableCell className="font-semibold">{m.current_stock} {m.usage_unit}</TableCell>
                     <TableCell className="text-muted-foreground">{m.purchase_unit} → {m.usage_unit}</TableCell>
