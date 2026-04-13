@@ -103,6 +103,65 @@ export type Database = {
           },
         ]
       }
+      internal_transactions: {
+        Row: {
+          amount: number | null
+          created_at: string
+          given_by: string | null
+          id: string
+          note: string | null
+          product_id: string | null
+          quantity: number | null
+          source_location: string
+          status: string
+          taken_by: string | null
+          transaction_date: string
+          transaction_type: string
+          updated_at: string
+          voided: boolean
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string
+          given_by?: string | null
+          id?: string
+          note?: string | null
+          product_id?: string | null
+          quantity?: number | null
+          source_location?: string
+          status?: string
+          taken_by?: string | null
+          transaction_date?: string
+          transaction_type?: string
+          updated_at?: string
+          voided?: boolean
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string
+          given_by?: string | null
+          id?: string
+          note?: string | null
+          product_id?: string | null
+          quantity?: number | null
+          source_location?: string
+          status?: string
+          taken_by?: string | null
+          transaction_date?: string
+          transaction_type?: string
+          updated_at?: string
+          voided?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_transactions_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       production_batch_items: {
         Row: {
           created_at: string
@@ -163,6 +222,7 @@ export type Database = {
           quantity_produced: number
           total_batch_cost: number
           updated_at: string
+          voided: boolean
         }
         Insert: {
           batch_code: string
@@ -175,6 +235,7 @@ export type Database = {
           quantity_produced: number
           total_batch_cost?: number
           updated_at?: string
+          voided?: boolean
         }
         Update: {
           batch_code?: string
@@ -187,6 +248,7 @@ export type Database = {
           quantity_produced?: number
           total_batch_cost?: number
           updated_at?: string
+          voided?: boolean
         }
         Relationships: [
           {
@@ -351,6 +413,7 @@ export type Database = {
           total_cogs: number
           total_revenue: number
           updated_at: string
+          voided: boolean
         }
         Insert: {
           cost_per_unit?: number
@@ -367,6 +430,7 @@ export type Database = {
           total_cogs?: number
           total_revenue: number
           updated_at?: string
+          voided?: boolean
         }
         Update: {
           cost_per_unit?: number
@@ -383,6 +447,7 @@ export type Database = {
           total_cogs?: number
           total_revenue?: number
           updated_at?: string
+          voided?: boolean
         }
         Relationships: [
           {
@@ -404,6 +469,7 @@ export type Database = {
           quantity_transferred: number
           transfer_date: string
           updated_at: string
+          voided: boolean
         }
         Insert: {
           created_at?: string
@@ -414,6 +480,7 @@ export type Database = {
           quantity_transferred: number
           transfer_date?: string
           updated_at?: string
+          voided?: boolean
         }
         Update: {
           created_at?: string
@@ -424,6 +491,7 @@ export type Database = {
           quantity_transferred?: number
           transfer_date?: string
           updated_at?: string
+          voided?: boolean
         }
         Relationships: [
           {
