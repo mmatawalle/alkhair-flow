@@ -10,7 +10,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Truck } from "lucide-react";
+import { Truck, Ban } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type Destination = "shop" | "online_shop";
 
@@ -22,6 +26,7 @@ export default function Transfers() {
   const [destination, setDestination] = useState<Destination>("shop");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [note, setNote] = useState("");
+  const [voidId, setVoidId] = useState<string | null>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -72,7 +77,7 @@ export default function Transfers() {
       const updateData = destination === "online_shop"
         ? {
             production_stock: Number(selectedProduct.production_stock) - qty,
-            online_shop_stock: Number((selectedProduct as any).online_shop_stock ?? 0) + qty,
+            online_shop_stock: Number(selectedProduct.online_shop_stock) + qty,
           }
         : {
             production_stock: Number(selectedProduct.production_stock) - qty,
@@ -87,6 +92,40 @@ export default function Transfers() {
       setOpen(false);
       setProductId(""); setQty(0); setNote("");
       toast({ title: "Transferred ✓" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const voidMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const transfer = transfers?.find(t => t.id === id);
+      if (!transfer) throw new Error("Transfer not found");
+
+      const { error: voidError } = await supabase.from("transfer_records").update({ voided: true }).eq("id", id);
+      if (voidError) throw voidError;
+
+      // Reverse: determine destination from note
+      const isOnline = transfer.note?.includes("Online Shop");
+      const product = products?.find(p => p.id === transfer.product_id);
+      if (product) {
+        const updateData = isOnline
+          ? {
+              production_stock: Number(product.production_stock) + Number(transfer.quantity_transferred),
+              online_shop_stock: Number(product.online_shop_stock) - Number(transfer.quantity_transferred),
+            }
+          : {
+              production_stock: Number(product.production_stock) + Number(transfer.quantity_transferred),
+              shop_stock: Number(product.shop_stock) - Number(transfer.quantity_transferred),
+            };
+        const { error } = await supabase.from("products").update(updateData).eq("id", transfer.product_id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["transfer_records"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+      setVoidId(null);
+      toast({ title: "Transfer voided ✓", description: "Stock reversed." });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -116,20 +155,28 @@ export default function Transfers() {
                 <TableHead>Quantity</TableHead>
                 <TableHead>Destination</TableHead>
                 <TableHead>Note</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={5} className="text-center">Loading...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow>
               ) : transfers?.map((t: any) => {
                 const dest = t.note?.includes("Online Shop") ? "Online Shop" : "Shop";
                 return (
-                  <TableRow key={t.id}>
+                  <TableRow key={t.id} className={t.voided ? "opacity-40 line-through" : ""}>
                     <TableCell>{t.transfer_date}</TableCell>
                     <TableCell className="font-medium">{t.products?.name} ({t.products?.bottle_size})</TableCell>
                     <TableCell>{t.quantity_transferred}</TableCell>
-                    <TableCell><Badge variant="outline">{dest}</Badge></TableCell>
+                    <TableCell><Badge variant="outline">{t.voided ? "VOIDED" : dest}</Badge></TableCell>
                     <TableCell>{t.note?.replace(/\[→ (?:Online Shop|Shop)\]\s?/, "") || "—"}</TableCell>
+                    <TableCell>
+                      {!t.voided && (
+                        <Button variant="ghost" size="icon" title="Void" onClick={() => setVoidId(t.id)}>
+                          <Ban className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -173,6 +220,19 @@ export default function Transfers() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!voidId} onOpenChange={() => setVoidId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Void this transfer?</AlertDialogTitle>
+            <AlertDialogDescription>This will reverse the stock movement. This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => voidId && voidMutation.mutate(voidId)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Void Transfer</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

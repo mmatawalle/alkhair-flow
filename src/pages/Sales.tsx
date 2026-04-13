@@ -10,8 +10,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus } from "lucide-react";
+import { Plus, Ban } from "lucide-react";
 import { fmt } from "@/lib/stock-helpers";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function Sales() {
   const location = useLocation();
@@ -23,6 +27,7 @@ export default function Sales() {
   const [saleSource, setSaleSource] = useState("shop");
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split("T")[0]);
   const [note, setNote] = useState("");
+  const [voidId, setVoidId] = useState<string | null>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -50,7 +55,7 @@ export default function Sales() {
 
   const selectedProduct = products?.find(p => p.id === productId);
   const availableStock = selectedProduct
-    ? (saleSource === "online_shop" ? Number((selectedProduct as any).online_shop_stock ?? 0) : Number(selectedProduct.shop_stock))
+    ? (saleSource === "online_shop" ? Number(selectedProduct.online_shop_stock) : Number(selectedProduct.shop_stock))
     : 0;
   const totalRevenue = qtySold * sellingPrice;
   const costPerUnit = Number(selectedProduct?.average_cost_per_unit || 0);
@@ -80,10 +85,9 @@ export default function Sales() {
       });
       if (insertError) throw insertError;
 
-      const currentStock = saleSource === "online_shop" ? Number((selectedProduct as any).online_shop_stock ?? 0) : Number(selectedProduct.shop_stock);
       const updateData = saleSource === "online_shop"
-        ? { online_shop_stock: currentStock - qtySold }
-        : { shop_stock: currentStock - qtySold };
+        ? { online_shop_stock: Number(selectedProduct.online_shop_stock) - qtySold }
+        : { shop_stock: Number(selectedProduct.shop_stock) - qtySold };
       const { error: updateError } = await supabase.from("products").update(updateData).eq("id", productId);
       if (updateError) throw updateError;
     },
@@ -96,6 +100,36 @@ export default function Sales() {
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
+
+  const voidMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const sale = sales?.find(s => s.id === id);
+      if (!sale) throw new Error("Sale not found");
+
+      // Mark as voided
+      const { error: voidError } = await supabase.from("sale_records").update({ voided: true }).eq("id", id);
+      if (voidError) throw voidError;
+
+      // Restore stock
+      const product = products?.find(p => p.id === sale.product_id);
+      if (product) {
+        const updateData = sale.sale_source === "online_shop"
+          ? { online_shop_stock: Number(product.online_shop_stock) + Number(sale.quantity_sold) }
+          : { shop_stock: Number(product.shop_stock) + Number(sale.quantity_sold) };
+        const { error: updateError } = await supabase.from("products").update(updateData).eq("id", sale.product_id);
+        if (updateError) throw updateError;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["sale_records"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+      setVoidId(null);
+      toast({ title: "Sale voided ✓", description: "Stock restored." });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const activeSales = sales?.filter(s => !s.voided);
 
   return (
     <div className="space-y-4">
@@ -117,13 +151,14 @@ export default function Sales() {
                 <TableHead>COGS</TableHead>
                 <TableHead>Profit</TableHead>
                 <TableHead>Type</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={8} className="text-center">Loading...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center">Loading...</TableCell></TableRow>
               ) : sales?.map((s: any) => (
-                <TableRow key={s.id}>
+                <TableRow key={s.id} className={s.voided ? "opacity-40 line-through" : ""}>
                   <TableCell>{s.sale_date}</TableCell>
                   <TableCell className="font-medium">{s.products?.name} ({s.products?.bottle_size})</TableCell>
                   <TableCell><Badge variant="outline" className="capitalize">{s.sale_source === "online_shop" ? "Online Shop" : "Shop"}</Badge></TableCell>
@@ -131,7 +166,14 @@ export default function Sales() {
                   <TableCell>{fmt(s.total_revenue)}</TableCell>
                   <TableCell>{fmt(s.total_cogs)}</TableCell>
                   <TableCell className={Number(s.profit) >= 0 ? "text-emerald-600" : "text-destructive"}>{fmt(s.profit)}</TableCell>
-                  <TableCell><Badge variant="outline">{s.sale_type}</Badge></TableCell>
+                  <TableCell><Badge variant="outline">{s.voided ? "VOIDED" : s.sale_type}</Badge></TableCell>
+                  <TableCell>
+                    {!s.voided && (
+                      <Button variant="ghost" size="icon" title="Void this sale" onClick={() => setVoidId(s.id)}>
+                        <Ban className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -188,7 +230,6 @@ export default function Sales() {
                 <SelectItem value="cash">Cash</SelectItem>
                 <SelectItem value="transfer">Transfer</SelectItem>
                 <SelectItem value="pos">POS</SelectItem>
-                <SelectItem value="debt">Debt</SelectItem>
               </SelectContent>
             </Select>
 
@@ -209,6 +250,19 @@ export default function Sales() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!voidId} onOpenChange={() => setVoidId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Void this sale?</AlertDialogTitle>
+            <AlertDialogDescription>This will restore the stock and reverse the revenue. This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => voidId && voidMutation.mutate(voidId)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Void Sale</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
