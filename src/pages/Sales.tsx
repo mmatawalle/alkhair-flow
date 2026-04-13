@@ -26,7 +26,6 @@ export default function Sales() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  // Open dialog from dashboard quick action
   useEffect(() => {
     if ((location.state as any)?.openDialog) setOpen(true);
   }, [location.state]);
@@ -51,7 +50,7 @@ export default function Sales() {
 
   const selectedProduct = products?.find(p => p.id === productId);
   const availableStock = selectedProduct
-    ? (saleSource === "production" ? Number(selectedProduct.production_stock) : Number(selectedProduct.shop_stock))
+    ? (saleSource === "online_shop" ? Number((selectedProduct as any).online_shop_stock ?? 0) : Number(selectedProduct.shop_stock))
     : 0;
   const totalRevenue = qtySold * sellingPrice;
   const costPerUnit = Number(selectedProduct?.average_cost_per_unit || 0);
@@ -63,7 +62,7 @@ export default function Sales() {
       if (!selectedProduct) throw new Error("Select a product");
       if (qtySold <= 0) throw new Error("Quantity must be > 0");
       if (qtySold > availableStock) {
-        throw new Error(`Not enough ${saleSource} stock. Available: ${availableStock}`);
+        throw new Error(`Not enough ${saleSource === "online_shop" ? "online shop" : "shop"} stock. Available: ${availableStock}`);
       }
 
       const { error: insertError } = await supabase.from("sale_records").insert({
@@ -81,11 +80,10 @@ export default function Sales() {
       });
       if (insertError) throw insertError;
 
-      // Deduct from correct stock based on sale source
-      const updateData = saleSource === "production"
-        ? { production_stock: Number(selectedProduct.production_stock) - qtySold }
-        : { shop_stock: Number(selectedProduct.shop_stock) - qtySold };
-
+      const currentStock = saleSource === "online_shop" ? Number((selectedProduct as any).online_shop_stock ?? 0) : Number(selectedProduct.shop_stock);
+      const updateData = saleSource === "online_shop"
+        ? { online_shop_stock: currentStock - qtySold }
+        : { shop_stock: currentStock - qtySold };
       const { error: updateError } = await supabase.from("products").update(updateData).eq("id", productId);
       if (updateError) throw updateError;
     },
@@ -128,7 +126,7 @@ export default function Sales() {
                 <TableRow key={s.id}>
                   <TableCell>{s.sale_date}</TableCell>
                   <TableCell className="font-medium">{s.products?.name} ({s.products?.bottle_size})</TableCell>
-                  <TableCell><Badge variant="outline" className="capitalize">{s.sale_source || "shop"}</Badge></TableCell>
+                  <TableCell><Badge variant="outline" className="capitalize">{s.sale_source === "online_shop" ? "Online Shop" : "Shop"}</Badge></TableCell>
                   <TableCell>{s.quantity_sold}</TableCell>
                   <TableCell>{fmt(s.total_revenue)}</TableCell>
                   <TableCell>{fmt(s.total_cogs)}</TableCell>
@@ -162,14 +160,14 @@ export default function Sales() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="shop">Shop</SelectItem>
-                  <SelectItem value="production">Production (Online)</SelectItem>
+                  <SelectItem value="online_shop">Online Shop</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             {selectedProduct && (
               <p className="text-sm text-muted-foreground">
-                Available: <strong>{availableStock}</strong> units in {saleSource}
+                Available: <strong>{availableStock}</strong> units in {saleSource === "online_shop" ? "Online Shop" : "Shop"}
               </p>
             )}
 

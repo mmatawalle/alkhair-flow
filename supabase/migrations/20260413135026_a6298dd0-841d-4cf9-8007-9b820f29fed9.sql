@@ -1,0 +1,1 @@
+ALTER TABLE public.products ADD COLUMN online_shop_stock numeric NOT NULL DEFAULT 0;

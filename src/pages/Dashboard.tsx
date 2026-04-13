@@ -105,12 +105,15 @@ export default function Dashboard() {
       <h2 className="text-2xl font-bold text-foreground">Dashboard</h2>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Button size="lg" className="h-14 text-base gap-2" onClick={() => navigate("/sales", { state: { openDialog: true } })}>
           <Plus className="h-5 w-5" /> Record Sale
         </Button>
-        <Button size="lg" variant="outline" className="h-14 text-base gap-2 border-primary/30 hover:bg-primary/5" onClick={() => navigate("/transfers", { state: { openDialog: true } })}>
-          <Truck className="h-5 w-5" /> Transfer Stock
+        <Button size="lg" variant="outline" className="h-14 text-base gap-2 border-primary/30 hover:bg-primary/5" onClick={() => navigate("/transfers", { state: { openDialog: true, destination: "shop" } })}>
+          <Truck className="h-5 w-5" /> Transfer to Shop
+        </Button>
+        <Button size="lg" variant="outline" className="h-14 text-base gap-2 border-primary/30 hover:bg-primary/5" onClick={() => navigate("/transfers", { state: { openDialog: true, destination: "online_shop" } })}>
+          <Truck className="h-5 w-5" /> Transfer to Online
         </Button>
         <Button size="lg" variant="outline" className="h-14 text-base gap-2 border-primary/30 hover:bg-primary/5" onClick={() => navigate("/expenses", { state: { openDialog: true } })}>
           <Receipt className="h-5 w-5" /> Add Expense
@@ -189,7 +192,7 @@ export default function Dashboard() {
                     <div key={p.id} className="flex items-center justify-between text-sm">
                       <span className="font-medium">{p.name} ({p.bottle_size})</span>
                       <div className="flex items-center gap-3">
-                        <span className="text-muted-foreground">Shop: {p.shop_stock} | Prod: {p.production_stock}</span>
+                        <span className="text-muted-foreground">Shop: {p.shop_stock} | Online: {(p as any).online_shop_stock ?? 0} | Prod: {p.production_stock}</span>
                         <StockBadge level={getProductStockLevel(Number(p.shop_stock))} />
                       </div>
                     </div>
@@ -226,12 +229,13 @@ export default function Dashboard() {
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Production</TableHead>
-                    <TableHead>Shop</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
+                   <TableRow>
+                     <TableHead>Product</TableHead>
+                     <TableHead>Production</TableHead>
+                     <TableHead>Shop</TableHead>
+                     <TableHead>Online</TableHead>
+                     <TableHead>Status</TableHead>
+                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {products.map(p => (
@@ -239,7 +243,8 @@ export default function Dashboard() {
                       <TableCell className="font-medium">{p.name} ({p.bottle_size})</TableCell>
                       <TableCell>{p.production_stock}</TableCell>
                       <TableCell>{p.shop_stock}</TableCell>
-                      <TableCell><StockBadge level={getProductStockLevel(Math.min(Number(p.shop_stock), Number(p.production_stock)))} /></TableCell>
+                      <TableCell>{(p as any).online_shop_stock ?? 0}</TableCell>
+                      <TableCell><StockBadge level={getProductStockLevel(Math.min(Number(p.shop_stock), Number((p as any).online_shop_stock ?? 0)))} /></TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
