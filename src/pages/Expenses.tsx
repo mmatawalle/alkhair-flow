@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Pencil } from "lucide-react";
 import { fmt } from "@/lib/stock-helpers";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import {
@@ -21,15 +21,18 @@ import {
 const CATEGORIES = ["general", "transport", "utility", "maintenance", "salary", "packaging", "fuel", "other"];
 const PAYMENT_NATURES = ["normal", "family_debt", "recoverable", "non_recoverable"];
 
+const emptyForm = {
+  expense_side: "shop", category_code: "general", amount: 0,
+  expense_date: new Date().toISOString().split("T")[0], description: "",
+  requested_by: "", payment_nature: "normal", linked_item: "",
+};
+
 export default function Expenses() {
   const location = useLocation();
   const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [form, setForm] = useState({
-    expense_side: "shop", category_code: "general", amount: 0,
-    expense_date: new Date().toISOString().split("T")[0], description: "",
-    requested_by: "", payment_nature: "normal", linked_item: "",
-  });
+  const [form, setForm] = useState(emptyForm);
   const [filterSide, setFilterSide] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -49,21 +52,39 @@ export default function Expenses() {
     },
   });
 
+  const resetForm = () => { setEditingId(null); setForm(emptyForm); };
+
+  const openEdit = (e: any) => {
+    setEditingId(e.id);
+    setForm({
+      expense_side: e.expense_side, category_code: e.category_code, amount: e.amount,
+      expense_date: e.expense_date, description: e.description || "",
+      requested_by: e.requested_by || "", payment_nature: e.payment_nature, linked_item: e.linked_item || "",
+    });
+    setOpen(true);
+  };
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (form.amount <= 0) throw new Error("Amount must be > 0");
-      const { error } = await supabase.from("expense_records").insert({
+      const payload = {
         ...form,
         requested_by: form.requested_by || null,
         linked_item: form.linked_item || null,
         description: form.description || null,
-      });
-      if (error) throw error;
+      };
+      if (editingId) {
+        const { error } = await supabase.from("expense_records").update(payload).eq("id", editingId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("expense_records").insert(payload);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["expense_records"] });
-      setOpen(false);
-      toast({ title: "Expense recorded ✓" });
+      setOpen(false); resetForm();
+      toast({ title: editingId ? "Expense updated ✓" : "Expense recorded ✓" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -89,7 +110,7 @@ export default function Expenses() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-foreground">Expenses</h2>
-        <Button onClick={() => setOpen(true)}><Plus className="mr-2 h-4 w-4" />Add Expense</Button>
+        <Button onClick={() => { resetForm(); setOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Expense</Button>
       </div>
 
       <div className="flex flex-wrap items-end gap-4">
@@ -129,9 +150,10 @@ export default function Expenses() {
                   <TableCell>{e.description || "—"}</TableCell>
                   <TableCell className="capitalize text-muted-foreground">{e.payment_nature?.replace(/_/g, " ")}</TableCell>
                   <TableCell>
-                    <Button variant="ghost" size="icon" onClick={() => setDeleteId(e.id)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(e)}><Pencil className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => setDeleteId(e.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -140,9 +162,9 @@ export default function Expenses() {
         </CardContent>
       </Card>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Add Expense</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingId ? "Edit Expense" : "Add Expense"}</DialogTitle></DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -182,7 +204,7 @@ export default function Expenses() {
               </Select>
             </div>
             <DialogFooter>
-              <Button type="submit" disabled={saveMutation.isPending}>{saveMutation.isPending ? "Saving..." : "Add Expense"}</Button>
+              <Button type="submit" disabled={saveMutation.isPending}>{saveMutation.isPending ? "Saving..." : editingId ? "Update" : "Add Expense"}</Button>
             </DialogFooter>
           </form>
         </DialogContent>

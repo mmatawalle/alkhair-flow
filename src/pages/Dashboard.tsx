@@ -52,7 +52,7 @@ export default function Dashboard() {
   const { data: pendingTransactions } = useQuery({
     queryKey: ["internal_transactions", "pending"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("internal_transactions").select("*, products(name, bottle_size)").eq("status", "pending").eq("voided", false).order("transaction_date", { ascending: false });
+      const { data, error } = await supabase.from("internal_transactions").select("*, products(name, bottle_size, average_cost_per_unit)").eq("status", "pending").eq("voided", false).order("transaction_date", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -74,8 +74,11 @@ export default function Dashboard() {
   const todayProfit = todaySales?.reduce((s, r) => s + Number(r.profit), 0) ?? 0;
   const todayTransferQty = todayTransfers?.reduce((s, r) => s + Number(r.quantity_transferred), 0) ?? 0;
 
-  // Low stock alerts
-  const lowProducts = products?.filter(p => getProductStockLevel(Number(p.shop_stock)) !== "available") ?? [];
+  // Low stock alerts — check all locations
+  const lowProducts = products?.filter(p => {
+    const minStock = Math.min(Number(p.shop_stock), Number(p.online_shop_stock));
+    return getProductStockLevel(minStock) !== "available";
+  }) ?? [];
   const lowMaterials = rawMaterials?.filter(m => getStockLevel(Number(m.current_stock), Number(m.reorder_level)) !== "available") ?? [];
   const alertCount = lowProducts.length + lowMaterials.length;
 
@@ -108,19 +111,24 @@ export default function Dashboard() {
     return Object.values(counts).sort((a, b) => b.qty - a.qty)[0] || null;
   })();
 
-  // Pending summary
-  const pendingCount = pendingTransactions?.length ?? 0;
+  // Pending summary with VALUE
   const owesSummary = (() => {
     if (!pendingTransactions?.length) return [];
-    const map: Record<string, { name: string; products: number; cash: number }> = {};
+    const map: Record<string, { name: string; productItems: number; productValue: number; cash: number }> = {};
     pendingTransactions.forEach((t: any) => {
       const name = t.taken_by || "Unknown";
-      if (!map[name]) map[name] = { name, products: 0, cash: 0 };
-      if (t.transaction_type === "product") map[name].products += Number(t.quantity);
-      else map[name].cash += Number(t.amount);
+      if (!map[name]) map[name] = { name, productItems: 0, productValue: 0, cash: 0 };
+      if (t.transaction_type === "product") {
+        map[name].productItems += Number(t.quantity);
+        map[name].productValue += Number(t.quantity) * Number(t.products?.average_cost_per_unit || 0);
+      } else {
+        map[name].cash += Number(t.amount);
+      }
     });
     return Object.values(map);
   })();
+
+  const totalPendingValue = owesSummary.reduce((s, o) => s + o.productValue + o.cash, 0);
 
   return (
     <div className="space-y-6">
@@ -178,7 +186,7 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${alertCount > 0 ? "text-destructive" : ""}`}>{alertCount} stock</div>
-            {pendingCount > 0 && <p className="text-xs text-amber-600 font-medium">{pendingCount} pending internal</p>}
+            {totalPendingValue > 0 && <p className="text-xs text-amber-600 font-medium">{fmt(totalPendingValue)} pending</p>}
           </CardContent>
         </Card>
       </div>
@@ -208,9 +216,12 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Who Owes What */}
+        {/* Who Owes What — now with values */}
         <Card>
-          <CardHeader><CardTitle className="text-base">Pending Internal Transactions</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base">Pending Internal Transactions</CardTitle>
+            {totalPendingValue > 0 && <p className="text-xs text-amber-600">Total pending: {fmt(totalPendingValue)}</p>}
+          </CardHeader>
           <CardContent>
             {owesSummary.length === 0 ? (
               <p className="text-sm text-muted-foreground">No pending transactions ✓</p>
@@ -220,6 +231,7 @@ export default function Dashboard() {
                   <TableRow>
                     <TableHead>Person</TableHead>
                     <TableHead>Products</TableHead>
+                    <TableHead>Value</TableHead>
                     <TableHead>Cash</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -227,7 +239,8 @@ export default function Dashboard() {
                   {owesSummary.map(o => (
                     <TableRow key={o.name}>
                       <TableCell className="font-medium">{o.name}</TableCell>
-                      <TableCell>{o.products > 0 ? `${o.products} items` : "—"}</TableCell>
+                      <TableCell>{o.productItems > 0 ? `${o.productItems} items` : "—"}</TableCell>
+                      <TableCell>{o.productValue > 0 ? fmt(o.productValue) : "—"}</TableCell>
                       <TableCell>{o.cash > 0 ? fmt(o.cash) : "—"}</TableCell>
                     </TableRow>
                   ))}
@@ -250,7 +263,7 @@ export default function Dashboard() {
                       <span className="font-medium">{p.name} ({p.bottle_size})</span>
                       <div className="flex items-center gap-3">
                         <span className="text-muted-foreground">Shop: {p.shop_stock} | Online: {p.online_shop_stock} | Prod: {p.production_stock}</span>
-                        <StockBadge level={getProductStockLevel(Number(p.shop_stock))} />
+                        <StockBadge level={getProductStockLevel(Math.min(Number(p.shop_stock), Number(p.online_shop_stock)))} />
                       </div>
                     </div>
                   ))}

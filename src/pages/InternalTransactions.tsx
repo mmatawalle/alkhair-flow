@@ -18,6 +18,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+const SETTLEMENT_METHODS = ["cash", "transfer", "pos", "other"];
+
 export default function InternalTransactions() {
   const location = useLocation();
   const [open, setOpen] = useState(false);
@@ -26,6 +28,13 @@ export default function InternalTransactions() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+
+  // Settlement form
+  const [settlementMethod, setSettlementMethod] = useState("cash");
+  const [amountSettled, setAmountSettled] = useState(0);
+  const [dateSettled, setDateSettled] = useState(new Date().toISOString().split("T")[0]);
+  const [receivedBy, setReceivedBy] = useState("");
+
   const [form, setForm] = useState({
     transaction_type: "product" as "product" | "cash",
     product_id: "",
@@ -92,13 +101,11 @@ export default function InternalTransactions() {
       });
       if (insertError) throw insertError;
 
-      // For product type, reduce stock immediately
       if (form.transaction_type === "product" && selectedProduct) {
         const updateData = form.source_location === "online_shop"
           ? { online_shop_stock: Number(selectedProduct.online_shop_stock) - form.quantity }
           : { shop_stock: Number(selectedProduct.shop_stock) - form.quantity };
-        const { error: updateError } = await supabase.from("products").update(updateData).eq("id", form.product_id);
-        if (updateError) throw updateError;
+        await supabase.from("products").update(updateData).eq("id", form.product_id);
       }
     },
     onSuccess: () => {
@@ -111,9 +118,24 @@ export default function InternalTransactions() {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  const openSettleForm = (id: string) => {
+    const t = transactions?.find(tr => tr.id === id);
+    setSettleId(id);
+    setSettlementMethod("cash");
+    setAmountSettled(t?.transaction_type === "cash" ? Number(t.amount) : 0);
+    setDateSettled(new Date().toISOString().split("T")[0]);
+    setReceivedBy("");
+  };
+
   const settleMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("internal_transactions").update({ status: "settled" }).eq("id", id);
+      const { error } = await supabase.from("internal_transactions").update({
+        status: "settled",
+        settlement_method: settlementMethod,
+        amount_settled: amountSettled,
+        date_settled: dateSettled,
+        received_by: receivedBy || null,
+      }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -170,12 +192,14 @@ export default function InternalTransactions() {
                 <TableHead>Taken By</TableHead>
                 <TableHead>Given By</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Settled Via</TableHead>
+                <TableHead>Settled Amount</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={7} className="text-center">Loading...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center">Loading...</TableCell></TableRow>
               ) : filtered?.map((t: any) => (
                 <TableRow key={t.id} className={t.voided ? "opacity-50" : ""}>
                   <TableCell>{t.transaction_date}</TableCell>
@@ -192,10 +216,12 @@ export default function InternalTransactions() {
                       {t.voided ? "Voided" : t.status}
                     </Badge>
                   </TableCell>
+                  <TableCell className="capitalize">{t.settlement_method || "—"}</TableCell>
+                  <TableCell>{t.amount_settled ? fmt(t.amount_settled) : "—"}</TableCell>
                   <TableCell>
                     {!t.voided && t.status === "pending" && (
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" title="Settle" onClick={() => setSettleId(t.id)}>
+                        <Button variant="ghost" size="icon" title="Settle" onClick={() => openSettleForm(t.id)}>
                           <CheckCircle className="h-4 w-4 text-emerald-600" />
                         </Button>
                         <Button variant="ghost" size="icon" title="Delete" onClick={() => setDeleteId(t.id)}>
@@ -272,19 +298,35 @@ export default function InternalTransactions() {
         </DialogContent>
       </Dialog>
 
-      {/* Settle Confirm */}
-      <AlertDialog open={!!settleId} onOpenChange={() => setSettleId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Settle this transaction?</AlertDialogTitle>
-            <AlertDialogDescription>This marks the transaction as settled.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => settleId && settleMutation.mutate(settleId)}>Settle</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Settle Dialog (form, not just confirm) */}
+      <Dialog open={!!settleId} onOpenChange={() => setSettleId(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Settle Transaction</DialogTitle></DialogHeader>
+          <form onSubmit={(e) => { e.preventDefault(); settleId && settleMutation.mutate(settleId); }} className="space-y-3">
+            <div>
+              <label className="text-sm text-muted-foreground">How was it settled?</label>
+              <Select value={settlementMethod} onValueChange={setSettlementMethod}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {SETTLEMENT_METHODS.map(m => <SelectItem key={m} value={m} className="capitalize">{m}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm text-muted-foreground">Amount Settled (₦)</label>
+              <Input type="number" step="any" min={0} value={amountSettled || ""} onChange={(e) => setAmountSettled(Number(e.target.value))} required />
+            </div>
+            <div>
+              <label className="text-sm text-muted-foreground">Date Settled</label>
+              <Input type="date" value={dateSettled} onChange={(e) => setDateSettled(e.target.value)} />
+            </div>
+            <Input placeholder="Received by (who collected?)" value={receivedBy} onChange={(e) => setReceivedBy(e.target.value)} />
+            <DialogFooter>
+              <Button type="submit" disabled={settleMutation.isPending}>{settleMutation.isPending ? "Saving..." : "Mark as Settled"}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirm */}
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
