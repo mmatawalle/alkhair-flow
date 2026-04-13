@@ -8,8 +8,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Ban } from "lucide-react";
 import { fmt } from "@/lib/stock-helpers";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface MaterialUsage {
   raw_material_id: string;
@@ -23,6 +27,7 @@ export default function Production() {
   const [prodDate, setProdDate] = useState(new Date().toISOString().split("T")[0]);
   const [note, setNote] = useState("");
   const [usages, setUsages] = useState<MaterialUsage[]>([]);
+  const [voidId, setVoidId] = useState<string | null>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -53,7 +58,6 @@ export default function Production() {
     },
   });
 
-  // Calculate total batch cost from ACTUAL materials used
   const totalBatchCost = usages.reduce((sum, u) => {
     const mat = materials?.find(m => m.id === u.raw_material_id);
     return sum + (u.quantity_used * Number(mat?.average_cost_per_usage_unit || 0));
@@ -66,7 +70,6 @@ export default function Production() {
       if (qtyProduced <= 0) throw new Error("Enter quantity produced");
       if (usages.length === 0) throw new Error("Add materials used");
 
-      // Validate all materials have stock
       for (const u of usages) {
         if (!u.raw_material_id) throw new Error("Select all materials");
         if (u.quantity_used <= 0) throw new Error("Enter quantity for all materials");
@@ -79,7 +82,6 @@ export default function Production() {
 
       const batchCode = `B-${Date.now().toString(36).toUpperCase()}`;
 
-      // Insert batch
       const { data: batch, error: batchError } = await supabase.from("production_batches").insert({
         batch_code: batchCode,
         product_id: productId,
@@ -91,7 +93,6 @@ export default function Production() {
       }).select().single();
       if (batchError) throw batchError;
 
-      // Insert batch items with actual costs
       const items = usages.map(u => {
         const mat = materials!.find(m => m.id === u.raw_material_id)!;
         const unitCost = Number(mat.average_cost_per_usage_unit);
@@ -106,7 +107,6 @@ export default function Production() {
       const { error: itemsError } = await supabase.from("production_batch_items").insert(items);
       if (itemsError) throw itemsError;
 
-      // Deduct raw materials
       for (const u of usages) {
         const mat = materials!.find(m => m.id === u.raw_material_id)!;
         const { error } = await supabase.from("raw_materials").update({
@@ -115,7 +115,6 @@ export default function Production() {
         if (error) throw error;
       }
 
-      // Update product stock and costs (weighted average)
       const product = products!.find(p => p.id === productId)!;
       const totalExisting = Number(product.production_stock) + Number(product.shop_stock);
       const oldAvg = Number(product.average_cost_per_unit);
@@ -137,6 +136,46 @@ export default function Production() {
       setOpen(false);
       resetForm();
       toast({ title: "Batch recorded ✓", description: "Materials deducted, stock updated." });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const voidMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const batch = batches?.find(b => b.id === id);
+      if (!batch) throw new Error("Batch not found");
+
+      // Mark as voided
+      const { error: voidError } = await supabase.from("production_batches").update({ voided: true }).eq("id", id);
+      if (voidError) throw voidError;
+
+      // Restore raw materials
+      const { data: batchItems } = await supabase.from("production_batch_items").select("*").eq("production_batch_id", id);
+      if (batchItems) {
+        for (const item of batchItems) {
+          const mat = materials?.find(m => m.id === item.raw_material_id);
+          if (mat) {
+            await supabase.from("raw_materials").update({
+              current_stock: Number(mat.current_stock) + Number(item.quantity_used),
+            }).eq("id", mat.id);
+          }
+        }
+      }
+
+      // Reduce production stock
+      const product = products?.find(p => p.id === batch.product_id);
+      if (product) {
+        await supabase.from("products").update({
+          production_stock: Math.max(0, Number(product.production_stock) - Number(batch.quantity_produced)),
+        }).eq("id", batch.product_id);
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["production_batches"] });
+      qc.invalidateQueries({ queryKey: ["raw_materials"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+      setVoidId(null);
+      toast({ title: "Batch voided ✓", description: "Materials restored, stock reversed." });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -172,19 +211,27 @@ export default function Production() {
                 <TableHead>Qty Made</TableHead>
                 <TableHead>Total Cost</TableHead>
                 <TableHead>Cost/Unit</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center">Loading...</TableCell></TableRow>
               ) : batches?.map((b: any) => (
-                <TableRow key={b.id}>
+                <TableRow key={b.id} className={b.voided ? "opacity-40 line-through" : ""}>
                   <TableCell>{b.production_date}</TableCell>
                   <TableCell className="font-mono text-xs">{b.batch_code}</TableCell>
                   <TableCell className="font-medium">{b.products?.name} ({b.products?.bottle_size})</TableCell>
                   <TableCell>{b.quantity_produced}</TableCell>
                   <TableCell>{fmt(b.total_batch_cost)}</TableCell>
-                  <TableCell>{fmt(b.cost_per_unit)}</TableCell>
+                  <TableCell>{b.voided ? "VOIDED" : fmt(b.cost_per_unit)}</TableCell>
+                  <TableCell>
+                    {!b.voided && (
+                      <Button variant="ghost" size="icon" title="Void batch" onClick={() => setVoidId(b.id)}>
+                        <Ban className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -264,6 +311,19 @@ export default function Production() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!voidId} onOpenChange={() => setVoidId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Void this batch?</AlertDialogTitle>
+            <AlertDialogDescription>This will restore raw materials and reverse production stock. This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => voidId && voidMutation.mutate(voidId)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Void Batch</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
