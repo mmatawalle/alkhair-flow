@@ -10,7 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Pencil } from "lucide-react";
+import { Plus, Trash2, Pencil, Download } from "lucide-react";
+import { downloadCSV } from "@/lib/csv-export";
 import { fmt } from "@/lib/stock-helpers";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import {
@@ -110,7 +111,16 @@ export default function Expenses() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-foreground">Expenses</h2>
-        <Button onClick={() => { resetForm(); setOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Expense</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => {
+            if (!filtered?.length) return;
+            downloadCSV("expenses.csv",
+              ["Date", "Side", "Category", "Amount", "Description", "Payment"],
+              filtered.map(e => [e.expense_date, e.expense_side, e.category_code, e.amount, e.description || "", e.payment_nature])
+            );
+          }}><Download className="mr-2 h-4 w-4" />Export</Button>
+          <Button onClick={() => { resetForm(); setOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Expense</Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-end gap-4">
