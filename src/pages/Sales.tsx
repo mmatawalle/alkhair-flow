@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Ban } from "lucide-react";
 import { fmt } from "@/lib/stock-helpers";
+import { DateRangeFilter } from "@/components/DateRangeFilter";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -28,6 +29,8 @@ export default function Sales() {
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split("T")[0]);
   const [note, setNote] = useState("");
   const [voidId, setVoidId] = useState<string | null>(null);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -129,7 +132,9 @@ export default function Sales() {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  
+  let filtered = sales;
+  if (dateFrom) filtered = filtered?.filter(s => s.sale_date >= dateFrom);
+  if (dateTo) filtered = filtered?.filter(s => s.sale_date <= dateTo);
 
   return (
     <div className="space-y-4">
@@ -137,6 +142,8 @@ export default function Sales() {
         <h2 className="text-2xl font-bold text-foreground">Sales</h2>
         <Button onClick={() => setOpen(true)}><Plus className="mr-2 h-4 w-4" />Add Sale</Button>
       </div>
+
+      <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} onClear={() => { setDateFrom(""); setDateTo(""); }} />
 
       <Card>
         <CardContent className="p-0">
@@ -157,7 +164,7 @@ export default function Sales() {
             <TableBody>
               {isLoading ? (
                 <TableRow><TableCell colSpan={9} className="text-center">Loading...</TableCell></TableRow>
-              ) : sales?.map((s: any) => (
+              ) : filtered?.map((s: any) => (
                 <TableRow key={s.id} className={s.voided ? "opacity-40 line-through" : ""}>
                   <TableCell>{s.sale_date}</TableCell>
                   <TableCell className="font-medium">{s.products?.name} ({s.products?.bottle_size})</TableCell>
