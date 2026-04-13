@@ -342,6 +342,7 @@ export type Database = {
           profit: number
           quantity_sold: number
           sale_date: string
+          sale_source: string
           sale_type: string
           selling_price_per_unit: number
           total_cogs: number
@@ -357,6 +358,7 @@ export type Database = {
           profit?: number
           quantity_sold: number
           sale_date?: string
+          sale_source?: string
           sale_type?: string
           selling_price_per_unit: number
           total_cogs?: number
@@ -372,6 +374,7 @@ export type Database = {
           profit?: number
           quantity_sold?: number
           sale_date?: string
+          sale_source?: string
           sale_type?: string
           selling_price_per_unit?: number
           total_cogs?: number
