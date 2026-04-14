@@ -10,8 +10,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Ban, Pencil, Receipt, Download } from "lucide-react";
+import { Plus, Ban, Pencil, Receipt, Download, Search } from "lucide-react";
 import { fmt } from "@/lib/stock-helpers";
+import { SortableTableHead } from "@/components/SortableTableHead";
+import { useSortableTable } from "@/hooks/use-sortable-table";
+import { logAudit } from "@/lib/audit";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -34,6 +37,7 @@ export default function Sales() {
   const [voidId, setVoidId] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [searchText, setSearchText] = useState("");
   const [receiptSale, setReceiptSale] = useState<any>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -179,10 +183,16 @@ export default function Sales() {
   let filtered = sales;
   if (dateFrom) filtered = filtered?.filter(s => s.sale_date >= dateFrom);
   if (dateTo) filtered = filtered?.filter(s => s.sale_date <= dateTo);
+  if (searchText) {
+    const s = searchText.toLowerCase();
+    filtered = filtered?.filter((r: any) => r.products?.name?.toLowerCase().includes(s) || r.note?.toLowerCase().includes(s));
+  }
+
+  const { sort, toggleSort, sorted } = useSortableTable(filtered);
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-2xl font-bold text-foreground">Sales</h2>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => {
@@ -196,37 +206,44 @@ export default function Sales() {
         </div>
       </div>
 
-      <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} onClear={() => { setDateFrom(""); setDateTo(""); }} />
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <label className="text-xs text-muted-foreground">Search</label>
+          <Input placeholder="Search product..." value={searchText} onChange={e => setSearchText(e.target.value)} className="w-[160px] h-8 text-sm" />
+        </div>
+        <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} onClear={() => { setDateFrom(""); setDateTo(""); }} />
+      </div>
 
       <Card>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Product</TableHead>
-                <TableHead>Source</TableHead>
-                <TableHead>Qty</TableHead>
-                <TableHead>Revenue</TableHead>
-                <TableHead>COGS</TableHead>
-                <TableHead>Profit</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <SortableTableHead label="Date" sortKey="sale_date" sort={sort} onToggle={toggleSort} />
+                  <TableHead>Product</TableHead>
+                  <TableHead className="hidden md:table-cell">Source</TableHead>
+                  <SortableTableHead label="Qty" sortKey="quantity_sold" sort={sort} onToggle={toggleSort} />
+                  <SortableTableHead label="Revenue" sortKey="total_revenue" sort={sort} onToggle={toggleSort} />
+                  <TableHead className="hidden md:table-cell">COGS</TableHead>
+                  <SortableTableHead label="Profit" sortKey="profit" sort={sort} onToggle={toggleSort} />
+                  <TableHead className="hidden md:table-cell">Type</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow><TableCell colSpan={9} className="text-center">Loading...</TableCell></TableRow>
-              ) : filtered?.map((s: any) => (
+              ) : sorted.map((s: any) => (
                 <TableRow key={s.id} className={s.voided ? "opacity-40 line-through" : ""}>
-                  <TableCell>{s.sale_date}</TableCell>
-                  <TableCell className="font-medium">{s.products?.name} ({s.products?.bottle_size})</TableCell>
-                  <TableCell><Badge variant="outline" className="capitalize">{s.sale_source === "online_shop" ? "Online Shop" : "Shop"}</Badge></TableCell>
+                  <TableCell className="whitespace-nowrap">{s.sale_date}</TableCell>
+                  <TableCell className="font-medium">{s.products?.name} <span className="text-muted-foreground text-xs">({s.products?.bottle_size})</span></TableCell>
+                  <TableCell className="hidden md:table-cell"><Badge variant="outline" className="capitalize">{s.sale_source === "online_shop" ? "Online" : "Shop"}</Badge></TableCell>
                   <TableCell>{s.quantity_sold}</TableCell>
                   <TableCell>{fmt(s.total_revenue)}</TableCell>
-                  <TableCell>{fmt(s.total_cogs)}</TableCell>
+                  <TableCell className="hidden md:table-cell">{fmt(s.total_cogs)}</TableCell>
                   <TableCell className={Number(s.profit) >= 0 ? "text-emerald-600" : "text-destructive"}>{fmt(s.profit)}</TableCell>
-                  <TableCell><Badge variant="outline">{s.voided ? "VOIDED" : s.sale_type}</Badge></TableCell>
+                  <TableCell className="hidden md:table-cell"><Badge variant="outline">{s.voided ? "VOIDED" : s.sale_type}</Badge></TableCell>
                   <TableCell>
                     <div className="flex gap-1">
                       <Button variant="ghost" size="icon" title="Receipt" onClick={() => setReceiptSale(s)}>
@@ -248,6 +265,7 @@ export default function Sales() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
