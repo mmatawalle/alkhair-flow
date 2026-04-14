@@ -19,6 +19,8 @@ import InternalTransactions from "./pages/InternalTransactions";
 import ProfitLoss from "./pages/ProfitLoss";
 import AuditLog from "./pages/AuditLog";
 import StockAdjustments from "./pages/StockAdjustments";
+import Vendors from "./pages/Vendors";
+import VendorConsignments from "./pages/VendorConsignments";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -51,6 +53,8 @@ function ProtectedRoutes() {
         <Route path="/gifts" element={<Gifts />} />
         <Route path="/profit-loss" element={<ProfitLoss />} />
         <Route path="/stock-adjustments" element={<StockAdjustments />} />
+        <Route path="/vendors" element={<Vendors />} />
+        <Route path="/vendor-ops" element={<VendorConsignments />} />
         <Route path="/audit-log" element={<AuditLog />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

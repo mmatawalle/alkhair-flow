@@ -17,7 +17,7 @@ import type { Tables } from "@/integrations/supabase/types";
 
 type Product = Tables<"products">;
 
-const emptyForm = { name: "", bottle_size: "50cl", category: "milkshake", selling_price: 0, is_active: true };
+const emptyForm = { name: "", bottle_size: "50cl", category: "milkshake", selling_price: 0, is_active: true, vendor_id: null as string | null, commission_rate: 0 };
 
 type StockFilter = "all" | "available" | "low" | "finished";
 
@@ -36,6 +36,14 @@ export default function Products() {
       const { data, error } = await supabase.from("products").select("*").order("category").order("name");
       if (error) throw error;
       return data;
+    },
+  });
+
+  const { data: vendors } = useQuery({
+    queryKey: ["vendors"],
+    queryFn: async () => {
+      const { data } = await supabase.from("vendors").select("*").order("name");
+      return data || [];
     },
   });
 
@@ -80,7 +88,7 @@ export default function Products() {
 
   const openEdit = (p: Product) => {
     setEditing(p);
-    setForm({ name: p.name, bottle_size: p.bottle_size, category: p.category, selling_price: p.selling_price, is_active: p.is_active });
+    setForm({ name: p.name, bottle_size: p.bottle_size, category: p.category, selling_price: p.selling_price, is_active: p.is_active, vendor_id: (p as any).vendor_id || null, commission_rate: (p as any).commission_rate || 0 });
     setOpen(true);
   };
 
@@ -182,6 +190,26 @@ export default function Products() {
               <label className="text-sm text-muted-foreground">Selling Price (₦)</label>
               <Input type="number" step="any" value={form.selling_price} onChange={(e) => setForm({ ...form, selling_price: Number(e.target.value) })} min={0} required />
             </div>
+            <div>
+              <label className="text-sm text-muted-foreground">Vendor (optional — for consignment products)</label>
+              <Select value={form.vendor_id || "none"} onValueChange={(v) => {
+                const vid = v === "none" ? null : v;
+                const vendor = vendors?.find(vn => vn.id === vid);
+                setForm({ ...form, vendor_id: vid, commission_rate: vendor ? vendor.default_commission_rate : 0 });
+              }}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No vendor (own product)</SelectItem>
+                  {vendors?.map(v => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {form.vendor_id && (
+              <div>
+                <label className="text-sm text-muted-foreground">Commission Rate (%)</label>
+                <Input type="number" step="any" min={0} max={100} value={form.commission_rate} onChange={(e) => setForm({ ...form, commission_rate: Number(e.target.value) })} />
+              </div>
+            )}
             <DialogFooter>
               <Button type="submit" disabled={saveMutation.isPending}>{saveMutation.isPending ? "Saving..." : "Save"}</Button>
             </DialogFooter>
