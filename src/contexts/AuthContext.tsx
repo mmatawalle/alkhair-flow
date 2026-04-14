@@ -6,8 +6,9 @@ interface AuthContextType {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  isSuperAdmin: boolean;
+  userFullName: string;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -19,18 +20,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [userFullName, setUserFullName] = useState("");
+
+  const fetchRole = async (userId: string) => {
+    try {
+      const { data } = await supabase.rpc("has_role", { _user_id: userId, _role: "super_admin" });
+      setIsSuperAdmin(!!data);
+    } catch {
+      setIsSuperAdmin(false);
+    }
+  };
+
+  const fetchProfile = async (userId: string) => {
+    try {
+      const { data } = await supabase.from("profiles").select("full_name").eq("user_id", userId).single();
+      setUserFullName(data?.full_name || "");
+    } catch {
+      setUserFullName("");
+    }
+  };
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+      if (session?.user) {
+        setTimeout(() => {
+          fetchRole(session.user.id);
+          fetchProfile(session.user.id);
+        }, 0);
+      } else {
+        setIsSuperAdmin(false);
+        setUserFullName("");
+      }
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+      if (session?.user) {
+        fetchRole(session.user.id);
+        fetchProfile(session.user.id);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -41,18 +75,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error;
   };
 
-  const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({ email, password });
-    if (error) throw error;
-  };
-
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ session, user, loading, isSuperAdmin, userFullName, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
