@@ -135,29 +135,29 @@ export default function Dashboard() {
       <h2 className="text-2xl font-bold text-foreground">Dashboard</h2>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <Button size="lg" className="h-14 text-base gap-2" onClick={() => navigate("/sales", { state: { openDialog: true } })}>
-          <Plus className="h-5 w-5" /> Record Sale
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-3">
+        <Button size="lg" className="h-12 md:h-14 text-sm md:text-base gap-2" onClick={() => navigate("/sales", { state: { openDialog: true } })}>
+          <Plus className="h-4 w-4 md:h-5 md:w-5" /> Sale
         </Button>
-        <Button size="lg" variant="outline" className="h-14 text-base gap-2 border-primary/30 hover:bg-primary/5" onClick={() => navigate("/transfers", { state: { openDialog: true, destination: "shop" } })}>
-          <Truck className="h-5 w-5" /> To Shop
+        <Button size="lg" variant="outline" className="h-12 md:h-14 text-sm md:text-base gap-2 border-primary/30 hover:bg-primary/5" onClick={() => navigate("/transfers", { state: { openDialog: true, destination: "shop" } })}>
+          <Truck className="h-4 w-4 md:h-5 md:w-5" /> To Shop
         </Button>
-        <Button size="lg" variant="outline" className="h-14 text-base gap-2 border-primary/30 hover:bg-primary/5" onClick={() => navigate("/transfers", { state: { openDialog: true, destination: "online_shop" } })}>
-          <Truck className="h-5 w-5" /> To Online
+        <Button size="lg" variant="outline" className="h-12 md:h-14 text-sm md:text-base gap-2 border-primary/30 hover:bg-primary/5" onClick={() => navigate("/transfers", { state: { openDialog: true, destination: "online_shop" } })}>
+          <Truck className="h-4 w-4 md:h-5 md:w-5" /> To Online
         </Button>
-        <Button size="lg" variant="outline" className="h-14 text-base gap-2 border-primary/30 hover:bg-primary/5" onClick={() => navigate("/expenses", { state: { openDialog: true } })}>
-          <Receipt className="h-5 w-5" /> Expense
+        <Button size="lg" variant="outline" className="h-12 md:h-14 text-sm md:text-base gap-2 border-primary/30 hover:bg-primary/5" onClick={() => navigate("/expenses", { state: { openDialog: true } })}>
+          <Receipt className="h-4 w-4 md:h-5 md:w-5" /> Expense
         </Button>
-        <Button size="lg" variant="outline" className="h-14 text-base gap-2 border-primary/30 hover:bg-primary/5" onClick={() => navigate("/gifts", { state: { openDialog: true } })}>
-          <Gift className="h-5 w-5" /> Gift
+        <Button size="lg" variant="outline" className="h-12 md:h-14 text-sm md:text-base gap-2 border-primary/30 hover:bg-primary/5" onClick={() => navigate("/gifts", { state: { openDialog: true } })}>
+          <Gift className="h-4 w-4 md:h-5 md:w-5" /> Gift
         </Button>
-        <Button size="lg" variant="outline" className="h-14 text-base gap-2 border-primary/30 hover:bg-primary/5" onClick={() => navigate("/internal", { state: { openDialog: true } })}>
-          <Repeat className="h-5 w-5" /> Internal
+        <Button size="lg" variant="outline" className="h-12 md:h-14 text-sm md:text-base gap-2 border-primary/30 hover:bg-primary/5" onClick={() => navigate("/internal", { state: { openDialog: true } })}>
+          <Repeat className="h-4 w-4 md:h-5 md:w-5" /> Internal
         </Button>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Today Sales</CardTitle>
@@ -259,9 +259,9 @@ export default function Dashboard() {
                 <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase">Finished Products</p>
                 <div className="space-y-1.5">
                   {lowProducts.map(p => (
-                    <div key={p.id} className="flex items-center justify-between text-sm">
+                  <div key={p.id} className="flex flex-col sm:flex-row sm:items-center justify-between text-sm gap-1">
                       <span className="font-medium">{p.name} ({p.bottle_size})</span>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 text-xs sm:text-sm">
                         <span className="text-muted-foreground">Shop: {p.shop_stock} | Online: {p.online_shop_stock} | Prod: {p.production_stock}</span>
                         <StockBadge level={getProductStockLevel(Math.min(Number(p.shop_stock), Number(p.online_shop_stock)))} />
                       </div>
