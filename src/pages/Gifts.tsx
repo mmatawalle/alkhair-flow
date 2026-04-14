@@ -139,6 +139,7 @@ export default function Gifts() {
       qc.invalidateQueries({ queryKey: ["gift_records"] });
       qc.invalidateQueries({ queryKey: ["products"] });
       setOpen(false); resetForm();
+      logAudit({ action_type: editingId ? "edit" : "create", module: "gifts", new_values: { product_id: productId, quantity: qty, recipient, reason } });
       toast({ title: editingId ? "Gift updated ✓" : "Gift recorded ✓" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -162,6 +163,7 @@ export default function Gifts() {
       qc.invalidateQueries({ queryKey: ["gift_records"] });
       qc.invalidateQueries({ queryKey: ["products"] });
       setDeleteId(null);
+      logAudit({ action_type: "delete", module: "gifts", record_id: deleteId || undefined, note: "gift deleted, stock restored" });
       toast({ title: "Gift deleted & stock restored ✓" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),

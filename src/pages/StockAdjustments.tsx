@@ -16,7 +16,7 @@ import { logAudit } from "@/lib/audit";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { useSortableTable } from "@/hooks/use-sortable-table";
 
-const REASONS = ["opening_stock", "correction", "damage_spoilage", "recount_difference"];
+const REASONS = ["opening_stock", "correction", "damage_spoilage", "recount_difference", "house_use", "promo_free_use"];
 const LOCATIONS = ["production", "shop", "online_shop"];
 
 export default function StockAdjustments() {

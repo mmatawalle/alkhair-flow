@@ -14,6 +14,7 @@ import { fmt } from "@/lib/stock-helpers";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { useSortableTable } from "@/hooks/use-sortable-table";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
+import { logAudit } from "@/lib/audit";
 
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -118,6 +119,7 @@ export default function VendorConsignments() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["vendor_consignments"] });
       qc.invalidateQueries({ queryKey: ["products"] });
+      logAudit({ action_type: "create", module: "vendors", note: "consignment added", new_values: { vendor_id: vendorId, product_id: productId, quantity } });
       setOpen(false); setVendorId(""); setProductId(""); setQuantity(0); setNote("");
       setDate(new Date().toISOString().split("T")[0]);
       toast({ title: "Consignment recorded ✓" });
@@ -137,6 +139,7 @@ export default function VendorConsignments() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["vendor_payments"] });
       qc.invalidateQueries({ queryKey: ["vendor_ledger"] });
+      logAudit({ action_type: "create", module: "vendors", note: "vendor payment recorded", new_values: { vendor_id: payVendor, amount: payAmount } });
       setPayOpen(false); setPayVendor(""); setPayAmount(0); setPayNote("");
       setPayDate(new Date().toISOString().split("T")[0]);
       toast({ title: "Payment recorded ✓" });
@@ -164,6 +167,7 @@ export default function VendorConsignments() {
       qc.invalidateQueries({ queryKey: ["vendor_damages"] });
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["vendor_ledger"] });
+      logAudit({ action_type: "create", module: "vendors", note: "vendor damage recorded", new_values: { vendor_id: dmgVendor, product_id: dmgProduct, quantity: dmgQty, reason: dmgReason } });
       setDmgOpen(false); setDmgVendor(""); setDmgProduct(""); setDmgQty(0); setDmgReason("damaged"); setDmgNote("");
       setDmgDate(new Date().toISOString().split("T")[0]);
       toast({ title: "Damage recorded ✓" });
@@ -202,6 +206,7 @@ export default function VendorConsignments() {
       qc.invalidateQueries({ queryKey: ["vendor_damages"] });
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["vendor_ledger"] });
+      logAudit({ action_type: "delete", module: "vendors", note: `deleted vendor ${deleteId?.type}`, record_id: deleteId?.id });
       setDeleteId(null);
       toast({ title: "Deleted ✓" });
     },
