@@ -72,11 +72,12 @@ export default function RawMaterials() {
 
   const saveMutation = useMutation({
     mutationFn: async (values: typeof form) => {
+      const { current_stock, ...saveValues } = values;
       if (editing) {
-        const { error } = await supabase.from("raw_materials").update(values).eq("id", editing.id);
+        const { error } = await supabase.from("raw_materials").update(saveValues).eq("id", editing.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("raw_materials").insert(values as TablesInsert<"raw_materials">);
+        const { error } = await supabase.from("raw_materials").insert(saveValues as TablesInsert<"raw_materials">);
         if (error) throw error;
       }
     },
