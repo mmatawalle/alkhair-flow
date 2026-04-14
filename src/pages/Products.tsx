@@ -16,6 +16,13 @@ import { SortableTableHead } from "@/components/SortableTableHead";
 import BulkProductForm from "@/components/BulkProductForm";
 import type { Tables } from "@/integrations/supabase/types";
 
+const DRINK_CATEGORIES = ["Signature Milkshakes", "Fresh & Natural Series", "Native Series"];
+const CATEGORY_ORDER: Record<string, number> = {
+  "Signature Milkshakes": 0,
+  "Fresh & Natural Series": 1,
+  "Native Series": 2,
+};
+
 type Product = Tables<"products">;
 
 const emptyForm = { name: "", bottle_size: "50cl", category: "milkshake", selling_price: 0, is_active: true, vendor_id: null as string | null, commission_rate: 0 };
@@ -70,7 +77,18 @@ export default function Products() {
     return list;
   }, [enriched, stockFilter, typeFilter, nameFilter]);
 
-  const { sort, toggleSort, sorted } = useSortableTable(filtered, { key: "name", direction: "asc" });
+  const { sort, toggleSort, sorted: tableSorted } = useSortableTable(filtered, { key: "", direction: null });
+
+  // Default sorting: category order then name, unless user clicked a column header
+  const sorted = useMemo(() => {
+    if (sort.key && sort.direction) return tableSorted;
+    return [...filtered].sort((a, b) => {
+      const aOrder = CATEGORY_ORDER[a.category] ?? 99;
+      const bOrder = CATEGORY_ORDER[b.category] ?? 99;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return a.name.localeCompare(b.name);
+    });
+  }, [filtered, sort, tableSorted]);
 
   const saveMutation = useMutation({
     mutationFn: async (values: typeof form) => {
@@ -199,7 +217,16 @@ export default function Products() {
                   <SelectItem value="1L">1L</SelectItem>
                 </SelectContent>
               </Select>
-              <Input placeholder="Category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
+              {!form.vendor_id ? (
+                <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+                  <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
+                  <SelectContent>
+                    {DRINK_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input placeholder="Category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
+              )}
             </div>
             <div>
               <label className="text-sm text-muted-foreground">Selling Price (₦)</label>
