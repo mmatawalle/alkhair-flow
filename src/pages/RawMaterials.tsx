@@ -72,7 +72,7 @@ export default function RawMaterials() {
 
   const saveMutation = useMutation({
     mutationFn: async (values: typeof form) => {
-      const { current_stock, ...saveValues } = values;
+      const { current_stock: _stock, ...saveValues } = values;
       if (editing) {
         const { error } = await supabase.from("raw_materials").update(saveValues).eq("id", editing.id);
         if (error) throw error;
