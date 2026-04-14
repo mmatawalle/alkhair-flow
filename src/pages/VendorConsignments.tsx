@@ -20,6 +20,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { VendorPaymentReceipt } from "@/components/VendorPaymentReceipt";
 
 export default function VendorConsignments() {
   const [tab, setTab] = useState("consignments");
@@ -479,6 +480,8 @@ export default function VendorConsignments() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <VendorPaymentReceipt open={!!receiptPayment} onOpenChange={() => setReceiptPayment(null)} payment={receiptPayment} />
     </div>
   );
 }
