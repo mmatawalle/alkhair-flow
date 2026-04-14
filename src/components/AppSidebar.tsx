@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Package, ShoppingCart, Factory, ArrowRightLeft,
   DollarSign, Receipt, Gift, Beaker, LogOut, Repeat, TrendingUp,
-  ClipboardList, Scale, FileText
+  ClipboardList, Scale, FileText, Store, Truck
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -25,6 +25,8 @@ const items = [
   { title: "Expenses", url: "/expenses", icon: Receipt },
   { title: "Gifts", url: "/gifts", icon: Gift },
   { title: "Profit & Loss", url: "/profit-loss", icon: TrendingUp },
+  { title: "Vendors", url: "/vendors", icon: Store },
+  { title: "Consignments", url: "/vendor-ops", icon: Truck },
   { title: "Stock Adjust", url: "/stock-adjustments", icon: Scale },
   { title: "Audit Log", url: "/audit-log", icon: FileText },
 ];
