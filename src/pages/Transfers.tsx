@@ -137,51 +137,53 @@ export default function Transfers() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-2xl font-bold text-foreground">Transfer Stock</h2>
         <div className="flex gap-2">
-          <Button onClick={() => openWithDest("shop")}><Truck className="mr-2 h-4 w-4" />Transfer to Shop</Button>
-          <Button variant="outline" onClick={() => openWithDest("online_shop")}><Truck className="mr-2 h-4 w-4" />Transfer to Online Shop</Button>
+          <Button onClick={() => openWithDest("shop")} size="sm"><Truck className="mr-1 h-4 w-4" />To Shop</Button>
+          <Button variant="outline" onClick={() => openWithDest("online_shop")} size="sm"><Truck className="mr-1 h-4 w-4" />To Online</Button>
         </div>
       </div>
 
       <Card>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Product</TableHead>
-                <TableHead>Quantity</TableHead>
-                <TableHead>Destination</TableHead>
-                <TableHead>Note</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow>
-              ) : transfers?.map((t: any) => {
-                const dest = t.note?.includes("Online Shop") ? "Online Shop" : "Shop";
-                return (
-                  <TableRow key={t.id} className={t.voided ? "opacity-40 line-through" : ""}>
-                    <TableCell>{t.transfer_date}</TableCell>
-                    <TableCell className="font-medium">{t.products?.name} ({t.products?.bottle_size})</TableCell>
-                    <TableCell>{t.quantity_transferred}</TableCell>
-                    <TableCell><Badge variant="outline">{t.voided ? "VOIDED" : dest}</Badge></TableCell>
-                    <TableCell>{t.note?.replace(/\[→ (?:Online Shop|Shop)\]\s?/, "") || "—"}</TableCell>
-                    <TableCell>
-                      {!t.voided && (
-                        <Button variant="ghost" size="icon" title="Void" onClick={() => setVoidId(t.id)}>
-                          <Ban className="h-4 w-4 text-destructive" />
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Product</TableHead>
+                  <TableHead>Qty</TableHead>
+                  <TableHead>Destination</TableHead>
+                  <TableHead className="hidden md:table-cell">Note</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow>
+                ) : transfers?.map((t: any) => {
+                  const dest = t.note?.includes("Online Shop") ? "Online" : "Shop";
+                  return (
+                    <TableRow key={t.id} className={t.voided ? "opacity-40 line-through" : ""}>
+                      <TableCell className="whitespace-nowrap">{t.transfer_date}</TableCell>
+                      <TableCell className="font-medium">{t.products?.name} <span className="text-muted-foreground text-xs">({t.products?.bottle_size})</span></TableCell>
+                      <TableCell>{t.quantity_transferred}</TableCell>
+                      <TableCell><Badge variant="outline">{t.voided ? "VOIDED" : dest}</Badge></TableCell>
+                      <TableCell className="hidden md:table-cell">{t.note?.replace(/\[→ (?:Online Shop|Shop)\]\s?/, "") || "—"}</TableCell>
+                      <TableCell>
+                        {!t.voided && (
+                          <Button variant="ghost" size="icon" title="Void" onClick={() => setVoidId(t.id)}>
+                            <Ban className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 

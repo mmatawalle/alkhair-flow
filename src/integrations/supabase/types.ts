@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_log: {
+        Row: {
+          action_type: string
+          created_at: string
+          id: string
+          module: string
+          new_values: Json | null
+          note: string | null
+          old_values: Json | null
+          performed_by: string | null
+          record_id: string | null
+        }
+        Insert: {
+          action_type: string
+          created_at?: string
+          id?: string
+          module: string
+          new_values?: Json | null
+          note?: string | null
+          old_values?: Json | null
+          performed_by?: string | null
+          record_id?: string | null
+        }
+        Update: {
+          action_type?: string
+          created_at?: string
+          id?: string
+          module?: string
+          new_values?: Json | null
+          note?: string | null
+          old_values?: Json | null
+          performed_by?: string | null
+          record_id?: string | null
+        }
+        Relationships: []
+      }
       expense_records: {
         Row: {
           amount: number
@@ -515,6 +551,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      stock_adjustments: {
+        Row: {
+          adjusted_by: string | null
+          adjustment_amount: number
+          adjustment_date: string
+          affect_average_cost: boolean
+          created_at: string
+          id: string
+          item_id: string
+          item_type: string
+          location: string
+          new_quantity: number
+          note: string | null
+          old_quantity: number
+          reason: string
+          updated_at: string
+        }
+        Insert: {
+          adjusted_by?: string | null
+          adjustment_amount?: number
+          adjustment_date?: string
+          affect_average_cost?: boolean
+          created_at?: string
+          id?: string
+          item_id: string
+          item_type?: string
+          location?: string
+          new_quantity?: number
+          note?: string | null
+          old_quantity?: number
+          reason?: string
+          updated_at?: string
+        }
+        Update: {
+          adjusted_by?: string | null
+          adjustment_amount?: number
+          adjustment_date?: string
+          affect_average_cost?: boolean
+          created_at?: string
+          id?: string
+          item_id?: string
+          item_type?: string
+          location?: string
+          new_quantity?: number
+          note?: string | null
+          old_quantity?: number
+          reason?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       transfer_records: {
         Row: {

@@ -10,7 +10,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Pencil } from "lucide-react";
+import { Plus, Trash2, Pencil, Download } from "lucide-react";
+import { fmt } from "@/lib/stock-helpers";
+import { DateRangeFilter } from "@/components/DateRangeFilter";
+import { SortableTableHead } from "@/components/SortableTableHead";
+import { useSortableTable } from "@/hooks/use-sortable-table";
+import { downloadCSV } from "@/lib/csv-export";
+import { logAudit } from "@/lib/audit";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -30,6 +36,8 @@ export default function Gifts() {
   const [recipient, setRecipient] = useState("");
   const [reason, setReason] = useState("family");
   const [note, setNote] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -159,48 +167,66 @@ export default function Gifts() {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  let filtered = gifts;
+  if (dateFrom) filtered = filtered?.filter(g => (g as any).gift_date >= dateFrom);
+  if (dateTo) filtered = filtered?.filter(g => (g as any).gift_date <= dateTo);
+
+  const { sort, toggleSort, sorted } = useSortableTable(filtered);
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-2xl font-bold text-foreground">Gifts / Free Items</h2>
-        <Button onClick={() => { resetForm(); setOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Gift</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => {
+            if (!sorted.length) return;
+            downloadCSV("gifts.csv", ["Date", "Product", "Source", "Qty", "Recipient", "Reason"],
+              sorted.map((g: any) => [g.gift_date, `${g.products?.name} (${g.products?.bottle_size})`, g.source_location, g.quantity, g.recipient || "", g.reason_category])
+            );
+          }}><Download className="mr-2 h-4 w-4" />Export</Button>
+          <Button onClick={() => { resetForm(); setOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Gift</Button>
+        </div>
       </div>
+
+      <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} onClear={() => { setDateFrom(""); setDateTo(""); }} />
 
       <Card>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Product</TableHead>
-                <TableHead>Source</TableHead>
-                <TableHead>Qty</TableHead>
-                <TableHead>Recipient</TableHead>
-                <TableHead>Reason</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow><TableCell colSpan={7} className="text-center">Loading...</TableCell></TableRow>
-              ) : gifts?.map((g: any) => (
-                <TableRow key={g.id}>
-                  <TableCell>{g.gift_date}</TableCell>
-                  <TableCell className="font-medium">{g.products?.name} ({g.products?.bottle_size})</TableCell>
-                  <TableCell><Badge variant="outline" className="capitalize">{g.source_location}</Badge></TableCell>
-                  <TableCell>{g.quantity}</TableCell>
-                  <TableCell>{g.recipient || "—"}</TableCell>
-                  <TableCell className="capitalize">{g.reason_category?.replace(/_/g, " ")}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(g)}><Pencil className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" onClick={() => setDeleteId(g.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                    </div>
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <SortableTableHead label="Date" sortKey="gift_date" sort={sort} onToggle={toggleSort} />
+                  <TableHead>Product</TableHead>
+                  <TableHead className="hidden md:table-cell">Source</TableHead>
+                  <SortableTableHead label="Qty" sortKey="quantity" sort={sort} onToggle={toggleSort} />
+                  <TableHead className="hidden md:table-cell">Recipient</TableHead>
+                  <TableHead>Reason</TableHead>
+                  <TableHead></TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow><TableCell colSpan={7} className="text-center">Loading...</TableCell></TableRow>
+                ) : sorted.map((g: any) => (
+                  <TableRow key={g.id}>
+                    <TableCell className="whitespace-nowrap">{g.gift_date}</TableCell>
+                    <TableCell className="font-medium">{g.products?.name} <span className="text-muted-foreground text-xs">({g.products?.bottle_size})</span></TableCell>
+                    <TableCell className="hidden md:table-cell"><Badge variant="outline" className="capitalize">{g.source_location}</Badge></TableCell>
+                    <TableCell>{g.quantity}</TableCell>
+                    <TableCell className="hidden md:table-cell">{g.recipient || "—"}</TableCell>
+                    <TableCell className="capitalize text-sm">{g.reason_category?.replace(/_/g, " ")}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(g)}><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => setDeleteId(g.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 
