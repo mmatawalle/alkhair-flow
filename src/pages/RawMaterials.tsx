@@ -12,6 +12,7 @@ import { StockBadge, getStockLevel, fmt } from "@/lib/stock-helpers";
 import { useSortableTable } from "@/hooks/use-sortable-table";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
+import { logAudit } from "@/lib/audit";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -76,9 +77,11 @@ export default function RawMaterials() {
       if (editing) {
         const { error } = await supabase.from("raw_materials").update(saveValues).eq("id", editing.id);
         if (error) throw error;
+        await logAudit({ action_type: "edit", module: "raw_materials", record_id: editing.id, old_values: { name: editing.name, purchase_unit: editing.purchase_unit, usage_unit: editing.usage_unit }, new_values: saveValues });
       } else {
-        const { error } = await supabase.from("raw_materials").insert(saveValues as TablesInsert<"raw_materials">);
+        const { data, error } = await supabase.from("raw_materials").insert(saveValues as TablesInsert<"raw_materials">).select("id").single();
         if (error) throw error;
+        await logAudit({ action_type: "create", module: "raw_materials", record_id: data.id, new_values: saveValues });
       }
     },
     onSuccess: () => {
@@ -91,8 +94,10 @@ export default function RawMaterials() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      const mat = materials?.find(m => m.id === id);
       const { error } = await supabase.from("raw_materials").delete().eq("id", id);
       if (error) throw error;
+      await logAudit({ action_type: "delete", module: "raw_materials", record_id: id, old_values: mat ? { name: mat.name } : undefined });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["raw_materials"] });

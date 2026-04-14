@@ -9,16 +9,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, FileText } from "lucide-react";
 import { fmt } from "@/lib/stock-helpers";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { useSortableTable } from "@/hooks/use-sortable-table";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
+import { logAudit } from "@/lib/audit";
 
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { VendorPaymentReceipt } from "@/components/VendorPaymentReceipt";
 
 export default function VendorConsignments() {
   const [tab, setTab] = useState("consignments");
@@ -41,6 +43,7 @@ export default function VendorConsignments() {
   const [dmgDate, setDmgDate] = useState(new Date().toISOString().split("T")[0]);
   const [dmgNote, setDmgNote] = useState("");
   const [deleteId, setDeleteId] = useState<{ id: string; type: string } | null>(null);
+  const [receiptPayment, setReceiptPayment] = useState<any>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const { toast } = useToast();
@@ -118,6 +121,7 @@ export default function VendorConsignments() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["vendor_consignments"] });
       qc.invalidateQueries({ queryKey: ["products"] });
+      logAudit({ action_type: "create", module: "vendors", note: "consignment added", new_values: { vendor_id: vendorId, product_id: productId, quantity } });
       setOpen(false); setVendorId(""); setProductId(""); setQuantity(0); setNote("");
       setDate(new Date().toISOString().split("T")[0]);
       toast({ title: "Consignment recorded ✓" });
@@ -137,6 +141,7 @@ export default function VendorConsignments() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["vendor_payments"] });
       qc.invalidateQueries({ queryKey: ["vendor_ledger"] });
+      logAudit({ action_type: "create", module: "vendors", note: "vendor payment recorded", new_values: { vendor_id: payVendor, amount: payAmount } });
       setPayOpen(false); setPayVendor(""); setPayAmount(0); setPayNote("");
       setPayDate(new Date().toISOString().split("T")[0]);
       toast({ title: "Payment recorded ✓" });
@@ -164,6 +169,7 @@ export default function VendorConsignments() {
       qc.invalidateQueries({ queryKey: ["vendor_damages"] });
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["vendor_ledger"] });
+      logAudit({ action_type: "create", module: "vendors", note: "vendor damage recorded", new_values: { vendor_id: dmgVendor, product_id: dmgProduct, quantity: dmgQty, reason: dmgReason } });
       setDmgOpen(false); setDmgVendor(""); setDmgProduct(""); setDmgQty(0); setDmgReason("damaged"); setDmgNote("");
       setDmgDate(new Date().toISOString().split("T")[0]);
       toast({ title: "Damage recorded ✓" });
@@ -202,6 +208,7 @@ export default function VendorConsignments() {
       qc.invalidateQueries({ queryKey: ["vendor_damages"] });
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["vendor_ledger"] });
+      logAudit({ action_type: "delete", module: "vendors", note: `deleted vendor ${deleteId?.type}`, record_id: deleteId?.id });
       setDeleteId(null);
       toast({ title: "Deleted ✓" });
     },
@@ -295,9 +302,14 @@ export default function VendorConsignments() {
                         <TableCell>{fmt(p.amount)}</TableCell>
                         <TableCell className="hidden md:table-cell text-muted-foreground text-sm">{p.note || "—"}</TableCell>
                         <TableCell>
-                          <Button variant="ghost" size="icon" onClick={() => setDeleteId({ id: p.id, type: "payment" })}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="icon" onClick={() => setReceiptPayment(p)}>
+                              <FileText className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => setDeleteId({ id: p.id, type: "payment" })}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -468,6 +480,8 @@ export default function VendorConsignments() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <VendorPaymentReceipt open={!!receiptPayment} onOpenChange={() => setReceiptPayment(null)} payment={receiptPayment} />
     </div>
   );
 }
