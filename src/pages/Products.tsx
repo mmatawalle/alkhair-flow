@@ -21,6 +21,7 @@ type Product = Tables<"products">;
 const emptyForm = { name: "", bottle_size: "50cl", category: "milkshake", selling_price: 0, is_active: true, vendor_id: null as string | null, commission_rate: 0 };
 
 type StockFilter = "all" | "available" | "low" | "finished";
+type TypeFilter = "all" | "drinks" | "snacks";
 
 export default function Products() {
   const [open, setOpen] = useState(false);
@@ -28,6 +29,7 @@ export default function Products() {
   const [editing, setEditing] = useState<Product | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [stockFilter, setStockFilter] = useState<StockFilter>("all");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [nameFilter, setNameFilter] = useState("");
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -62,9 +64,11 @@ export default function Products() {
   const filtered = useMemo(() => {
     let list = enriched;
     if (stockFilter !== "all") list = list.filter(p => p.stock_level === stockFilter);
+    if (typeFilter === "drinks") list = list.filter(p => !p.vendor_id);
+    if (typeFilter === "snacks") list = list.filter(p => !!p.vendor_id);
     if (nameFilter) list = list.filter(p => p.name.toLowerCase().includes(nameFilter.toLowerCase()));
     return list;
-  }, [enriched, stockFilter, nameFilter]);
+  }, [enriched, stockFilter, typeFilter, nameFilter]);
 
   const { sort, toggleSort, sorted } = useSortableTable(filtered, { key: "name", direction: "asc" });
 
@@ -108,6 +112,14 @@ export default function Products() {
           {(["all", "available", "low", "finished"] as StockFilter[]).map(s => (
             <Button key={s} size="sm" variant={stockFilter === s ? "default" : "outline"} onClick={() => setStockFilter(s)} className="capitalize text-xs">
               {s === "all" ? "All" : s}
+            </Button>
+          ))}
+        </div>
+        <div className="h-4 w-px bg-border" />
+        <div className="flex gap-1">
+          {(["all", "drinks", "snacks"] as TypeFilter[]).map(t => (
+            <Button key={t} size="sm" variant={typeFilter === t ? "default" : "outline"} onClick={() => setTypeFilter(t)} className="capitalize text-xs">
+              {t === "all" ? "All Types" : t}
             </Button>
           ))}
         </div>
