@@ -361,6 +361,7 @@ export type Database = {
           average_cost_per_unit: number
           bottle_size: string
           category: string
+          commission_rate: number
           created_at: string
           id: string
           is_active: boolean
@@ -371,11 +372,13 @@ export type Database = {
           selling_price: number
           shop_stock: number
           updated_at: string
+          vendor_id: string | null
         }
         Insert: {
           average_cost_per_unit?: number
           bottle_size?: string
           category?: string
+          commission_rate?: number
           created_at?: string
           id?: string
           is_active?: boolean
@@ -386,11 +389,13 @@ export type Database = {
           selling_price?: number
           shop_stock?: number
           updated_at?: string
+          vendor_id?: string | null
         }
         Update: {
           average_cost_per_unit?: number
           bottle_size?: string
           category?: string
+          commission_rate?: number
           created_at?: string
           id?: string
           is_active?: boolean
@@ -401,8 +406,17 @@ export type Database = {
           selling_price?: number
           shop_stock?: number
           updated_at?: string
+          vendor_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "products_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       purchase_records: {
         Row: {
@@ -656,6 +670,170 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      vendor_consignments: {
+        Row: {
+          consignment_date: string
+          created_at: string
+          id: string
+          note: string | null
+          product_id: string
+          quantity: number
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          consignment_date?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          product_id: string
+          quantity: number
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          consignment_date?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          product_id?: string
+          quantity?: number
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_consignments_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_consignments_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendor_damages: {
+        Row: {
+          created_at: string
+          damage_date: string
+          id: string
+          note: string | null
+          product_id: string
+          quantity: number
+          reason: string
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string
+          damage_date?: string
+          id?: string
+          note?: string | null
+          product_id: string
+          quantity: number
+          reason?: string
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string
+          damage_date?: string
+          id?: string
+          note?: string | null
+          product_id?: string
+          quantity?: number
+          reason?: string
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_damages_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_damages_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendor_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          note: string | null
+          payment_date: string
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          note?: string | null
+          payment_date?: string
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          note?: string | null
+          payment_date?: string
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_payments_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendors: {
+        Row: {
+          created_at: string
+          default_commission_rate: number
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          default_commission_rate?: number
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          default_commission_rate?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {
