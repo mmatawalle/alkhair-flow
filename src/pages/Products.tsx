@@ -115,6 +115,14 @@ export default function Products() {
             </Button>
           ))}
         </div>
+        <div className="h-4 w-px bg-border" />
+        <div className="flex gap-1">
+          {(["all", "drinks", "snacks"] as TypeFilter[]).map(t => (
+            <Button key={t} size="sm" variant={typeFilter === t ? "default" : "outline"} onClick={() => setTypeFilter(t)} className="capitalize text-xs">
+              {t === "all" ? "All Types" : t}
+            </Button>
+          ))}
+        </div>
       </div>
 
       {isLoading ? (
