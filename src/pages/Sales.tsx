@@ -324,8 +324,17 @@ export default function Sales() {
             {qtySold > 0 && selectedProduct && (
               <div className="rounded-lg bg-muted p-3 text-sm space-y-1">
                 <p>Revenue: <strong>{fmt(totalRevenue)}</strong></p>
-                <p>Cost: <strong>{fmt(totalCOGS)}</strong></p>
-                <p>Profit: <strong className={profit >= 0 ? "text-emerald-600" : "text-destructive"}>{fmt(profit)}</strong></p>
+                {(selectedProduct as any).vendor_id ? (
+                  <>
+                    <p>Commission ({(selectedProduct as any).commission_rate}%): <strong className="text-emerald-600">{fmt(totalRevenue * Number((selectedProduct as any).commission_rate) / 100)}</strong></p>
+                    <p>Vendor owed: <strong>{fmt(totalRevenue * (1 - Number((selectedProduct as any).commission_rate) / 100))}</strong></p>
+                  </>
+                ) : (
+                  <>
+                    <p>Cost: <strong>{fmt(totalCOGS)}</strong></p>
+                    <p>Profit: <strong className={profit >= 0 ? "text-emerald-600" : "text-destructive"}>{fmt(profit)}</strong></p>
+                  </>
+                )}
               </div>
             )}
 
