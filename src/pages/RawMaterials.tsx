@@ -186,8 +186,9 @@ export default function RawMaterials() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-sm text-muted-foreground">Current Stock</label>
-                <Input type="number" step="any" value={form.current_stock} onChange={(e) => setForm({ ...form, current_stock: Number(e.target.value) })} min={0} />
+                <label className="text-sm text-muted-foreground">Current Stock (read-only)</label>
+                <Input type="number" value={form.current_stock} disabled className="bg-muted" />
+                <p className="text-xs text-muted-foreground mt-1">Use Stock Adjustments page to change stock</p>
               </div>
               <div>
                 <label className="text-sm text-muted-foreground">Reorder Level</label>

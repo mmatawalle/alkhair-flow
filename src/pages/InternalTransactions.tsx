@@ -413,6 +413,8 @@ export default function InternalTransactions() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <InternalTransactionReceipt open={!!receiptTransaction} onOpenChange={() => setReceiptTransaction(null)} transaction={receiptTransaction} />
     </div>
   );
 }
