@@ -72,11 +72,12 @@ export default function RawMaterials() {
 
   const saveMutation = useMutation({
     mutationFn: async (values: typeof form) => {
+      const { current_stock: _stock, ...saveValues } = values;
       if (editing) {
-        const { error } = await supabase.from("raw_materials").update(values).eq("id", editing.id);
+        const { error } = await supabase.from("raw_materials").update(saveValues).eq("id", editing.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("raw_materials").insert(values as TablesInsert<"raw_materials">);
+        const { error } = await supabase.from("raw_materials").insert(saveValues as TablesInsert<"raw_materials">);
         if (error) throw error;
       }
     },
@@ -186,8 +187,9 @@ export default function RawMaterials() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-sm text-muted-foreground">Current Stock</label>
-                <Input type="number" step="any" value={form.current_stock} onChange={(e) => setForm({ ...form, current_stock: Number(e.target.value) })} min={0} />
+                <label className="text-sm text-muted-foreground">Current Stock (read-only)</label>
+                <Input type="number" value={form.current_stock} disabled className="bg-muted" />
+                <p className="text-xs text-muted-foreground mt-1">Use Stock Adjustments page to change stock</p>
               </div>
               <div>
                 <label className="text-sm text-muted-foreground">Reorder Level</label>

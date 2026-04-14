@@ -61,6 +61,7 @@ export type Database = {
           id: string
           linked_item: string | null
           payment_nature: string
+          payment_source: string
           requested_by: string | null
           updated_at: string
         }
@@ -74,6 +75,7 @@ export type Database = {
           id?: string
           linked_item?: string | null
           payment_nature?: string
+          payment_source?: string
           requested_by?: string | null
           updated_at?: string
         }
@@ -87,6 +89,7 @@ export type Database = {
           id?: string
           linked_item?: string | null
           payment_nature?: string
+          payment_source?: string
           requested_by?: string | null
           updated_at?: string
         }

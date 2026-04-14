@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, CheckCircle, XCircle, Download } from "lucide-react";
+import { Plus, CheckCircle, XCircle, Download, Eye } from "lucide-react";
+import { InternalTransactionReceipt } from "@/components/InternalTransactionReceipt";
 import { fmt } from "@/lib/stock-helpers";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { SortableTableHead } from "@/components/SortableTableHead";
@@ -31,6 +32,7 @@ export default function InternalTransactions() {
   const [tab, setTab] = useState("pending");
   const [settleId, setSettleId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [receiptTransaction, setReceiptTransaction] = useState<any>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [personFilter, setPersonFilter] = useState("");
@@ -287,16 +289,21 @@ export default function InternalTransactions() {
                     <TableCell className="hidden lg:table-cell">{t.date_settled || "—"}</TableCell>
                     <TableCell className="hidden lg:table-cell">{t.received_by || "—"}</TableCell>
                     <TableCell>
-                      {!t.voided && t.status === "pending" && (
-                        <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" title="Settle" onClick={() => openSettleForm(t.id)}>
-                            <CheckCircle className="h-4 w-4 text-emerald-600" />
-                          </Button>
-                          <Button variant="ghost" size="icon" title="Delete" onClick={() => setDeleteId(t.id)}>
-                            <XCircle className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      )}
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" title="View Receipt" onClick={() => setReceiptTransaction(t)}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        {!t.voided && t.status === "pending" && (
+                          <>
+                            <Button variant="ghost" size="icon" title="Settle" onClick={() => openSettleForm(t.id)}>
+                              <CheckCircle className="h-4 w-4 text-emerald-600" />
+                            </Button>
+                            <Button variant="ghost" size="icon" title="Delete" onClick={() => setDeleteId(t.id)}>
+                              <XCircle className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -406,6 +413,8 @@ export default function InternalTransactions() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <InternalTransactionReceipt open={!!receiptTransaction} onOpenChange={() => setReceiptTransaction(null)} transaction={receiptTransaction} />
     </div>
   );
 }

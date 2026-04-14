@@ -10,7 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Pencil, Download } from "lucide-react";
+import { Plus, Trash2, Pencil, Download, Eye } from "lucide-react";
+import { ExpenseReceipt } from "@/components/ExpenseReceipt";
 import { downloadCSV } from "@/lib/csv-export";
 import { fmt } from "@/lib/stock-helpers";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
@@ -24,11 +25,12 @@ import {
 
 const CATEGORIES = ["general", "transport", "utility", "maintenance", "salary", "packaging", "fuel", "other"];
 const PAYMENT_NATURES = ["normal", "family_debt", "recoverable", "non_recoverable"];
+const PAYMENT_SOURCES = ["cash", "bank", "pos", "other"];
 
 const emptyForm = {
   expense_side: "shop", category_code: "general", amount: 0,
   expense_date: new Date().toISOString().split("T")[0], description: "",
-  requested_by: "", payment_nature: "normal", linked_item: "",
+  requested_by: "", payment_nature: "normal", payment_source: "cash", linked_item: "",
 };
 
 export default function Expenses() {
@@ -40,6 +42,7 @@ export default function Expenses() {
   const [filterSide, setFilterSide] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [receiptExpense, setReceiptExpense] = useState<any>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -63,7 +66,8 @@ export default function Expenses() {
     setForm({
       expense_side: e.expense_side, category_code: e.category_code, amount: e.amount,
       expense_date: e.expense_date, description: e.description || "",
-      requested_by: e.requested_by || "", payment_nature: e.payment_nature, linked_item: e.linked_item || "",
+      requested_by: e.requested_by || "", payment_nature: e.payment_nature,
+      payment_source: (e as any).payment_source || "cash", linked_item: e.linked_item || "",
     });
     setOpen(true);
   };
@@ -167,6 +171,7 @@ export default function Expenses() {
                     <TableCell className="hidden md:table-cell capitalize text-muted-foreground">{e.payment_nature?.replace(/_/g, " ")}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" title="View Receipt" onClick={() => setReceiptExpense(e)}><Eye className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="icon" onClick={() => openEdit(e)}><Pencil className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="icon" onClick={() => setDeleteId(e.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                       </div>
@@ -211,14 +216,25 @@ export default function Expenses() {
             <Input type="date" value={form.expense_date} onChange={(e) => setForm({ ...form, expense_date: e.target.value })} />
             <Input placeholder="What was it for?" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
             <Input placeholder="Who asked? (optional)" value={form.requested_by} onChange={(e) => setForm({ ...form, requested_by: e.target.value })} />
-            <div>
-              <label className="text-sm text-muted-foreground">Payment type</label>
-              <Select value={form.payment_nature} onValueChange={(v) => setForm({ ...form, payment_nature: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {PAYMENT_NATURES.map(p => <SelectItem key={p} value={p} className="capitalize">{p.replace(/_/g, " ")}</SelectItem>)}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm text-muted-foreground">Payment type</label>
+                <Select value={form.payment_nature} onValueChange={(v) => setForm({ ...form, payment_nature: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {PAYMENT_NATURES.map(p => <SelectItem key={p} value={p} className="capitalize">{p.replace(/_/g, " ")}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm text-muted-foreground">Payment source</label>
+                <Select value={form.payment_source} onValueChange={(v) => setForm({ ...form, payment_source: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {PAYMENT_SOURCES.map(p => <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <DialogFooter>
               <Button type="submit" disabled={saveMutation.isPending}>{saveMutation.isPending ? "Saving..." : editingId ? "Update" : "Add Expense"}</Button>
@@ -239,6 +255,8 @@ export default function Expenses() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ExpenseReceipt open={!!receiptExpense} onOpenChange={() => setReceiptExpense(null)} expense={receiptExpense} />
     </div>
   );
 }
