@@ -13,6 +13,7 @@ import { Plus, Pencil } from "lucide-react";
 import { StockBadge, getProductStockLevel, fmt } from "@/lib/stock-helpers";
 import { useSortableTable } from "@/hooks/use-sortable-table";
 import { SortableTableHead } from "@/components/SortableTableHead";
+import BulkProductForm from "@/components/BulkProductForm";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Product = Tables<"products">;
@@ -23,6 +24,7 @@ type StockFilter = "all" | "available" | "low" | "finished";
 
 export default function Products() {
   const [open, setOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [stockFilter, setStockFilter] = useState<StockFilter>("all");
@@ -96,7 +98,7 @@ export default function Products() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-foreground">Products</h2>
-        <Button onClick={() => { setEditing(null); setForm(emptyForm); setOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Product</Button>
+        <Button onClick={() => setBulkOpen(true)}><Plus className="mr-2 h-4 w-4" />Add Product</Button>
       </div>
 
       {/* Filters */}
@@ -170,9 +172,10 @@ export default function Products() {
         </Card>
       )}
 
+      {/* Edit single product dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Product</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Edit Product</DialogTitle></DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(form); }} className="space-y-3">
             <Input placeholder="Product Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
             <div className="grid grid-cols-2 gap-3">
@@ -191,7 +194,7 @@ export default function Products() {
               <Input type="number" step="any" value={form.selling_price} onChange={(e) => setForm({ ...form, selling_price: Number(e.target.value) })} min={0} required />
             </div>
             <div>
-              <label className="text-sm text-muted-foreground">Vendor (optional — for consignment products)</label>
+              <label className="text-sm text-muted-foreground">Vendor (optional)</label>
               <Select value={form.vendor_id || "none"} onValueChange={(v) => {
                 const vid = v === "none" ? null : v;
                 const vendor = vendors?.find(vn => vn.id === vid);
@@ -216,6 +219,9 @@ export default function Products() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk add products */}
+      <BulkProductForm open={bulkOpen} onOpenChange={setBulkOpen} />
     </div>
   );
 }
