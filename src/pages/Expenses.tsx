@@ -14,6 +14,9 @@ import { Plus, Trash2, Pencil, Download } from "lucide-react";
 import { downloadCSV } from "@/lib/csv-export";
 import { fmt } from "@/lib/stock-helpers";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
+import { SortableTableHead } from "@/components/SortableTableHead";
+import { useSortableTable } from "@/hooks/use-sortable-table";
+import { logAudit } from "@/lib/audit";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -107,9 +110,11 @@ export default function Expenses() {
   if (dateFrom) filtered = filtered?.filter(e => e.expense_date >= dateFrom);
   if (dateTo) filtered = filtered?.filter(e => e.expense_date <= dateTo);
 
+  const { sort, toggleSort, sorted } = useSortableTable(filtered);
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-2xl font-bold text-foreground">Expenses</h2>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => {
@@ -136,39 +141,41 @@ export default function Expenses() {
 
       <Card>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Side</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Payment</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow><TableCell colSpan={7} className="text-center">Loading...</TableCell></TableRow>
-              ) : filtered?.map((e) => (
-                <TableRow key={e.id}>
-                  <TableCell>{e.expense_date}</TableCell>
-                  <TableCell><Badge variant={e.expense_side === "shop" ? "default" : "secondary"} className="capitalize">{e.expense_side}</Badge></TableCell>
-                  <TableCell className="capitalize">{e.category_code}</TableCell>
-                  <TableCell className="font-medium">{fmt(e.amount)}</TableCell>
-                  <TableCell>{e.description || "—"}</TableCell>
-                  <TableCell className="capitalize text-muted-foreground">{e.payment_nature?.replace(/_/g, " ")}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(e)}><Pencil className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" onClick={() => setDeleteId(e.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                    </div>
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <SortableTableHead label="Date" sortKey="expense_date" sort={sort} onToggle={toggleSort} />
+                  <TableHead>Side</TableHead>
+                  <TableHead>Category</TableHead>
+                  <SortableTableHead label="Amount" sortKey="amount" sort={sort} onToggle={toggleSort} />
+                  <TableHead className="hidden md:table-cell">Description</TableHead>
+                  <TableHead className="hidden md:table-cell">Payment</TableHead>
+                  <TableHead></TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow><TableCell colSpan={7} className="text-center">Loading...</TableCell></TableRow>
+                ) : sorted.map((e: any) => (
+                  <TableRow key={e.id}>
+                    <TableCell className="whitespace-nowrap">{e.expense_date}</TableCell>
+                    <TableCell><Badge variant={e.expense_side === "shop" ? "default" : "secondary"} className="capitalize text-xs">{e.expense_side}</Badge></TableCell>
+                    <TableCell className="capitalize">{e.category_code}</TableCell>
+                    <TableCell className="font-medium">{fmt(e.amount)}</TableCell>
+                    <TableCell className="hidden md:table-cell">{e.description || "—"}</TableCell>
+                    <TableCell className="hidden md:table-cell capitalize text-muted-foreground">{e.payment_nature?.replace(/_/g, " ")}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(e)}><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => setDeleteId(e.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 
