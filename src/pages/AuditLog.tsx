@@ -10,10 +10,13 @@ import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { useSortableTable } from "@/hooks/use-sortable-table";
 
-const MODULES = ["all", "sales", "purchases", "production", "transfers", "expenses", "gifts", "internal", "stock_adjustment"];
+const MODULES = ["all", "sales", "purchases", "production", "transfers", "expenses", "gifts", "internal", "stock_adjustment", "products", "raw_materials", "vendors"];
+const ACTION_TYPES = ["all", "create", "edit", "delete", "void", "settle", "stock_adjustment"];
 
 export default function AuditLog() {
   const [moduleFilter, setModuleFilter] = useState("all");
+  const [actionFilter, setActionFilter] = useState("all");
+  const [userFilter, setUserFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -27,9 +30,17 @@ export default function AuditLog() {
     },
   });
 
+  const users = useMemo(() => {
+    const set = new Set<string>();
+    logs?.forEach(l => { if (l.performed_by) set.add(l.performed_by); });
+    return Array.from(set).sort();
+  }, [logs]);
+
   const filtered = useMemo(() => {
     let result = logs ?? [];
     if (moduleFilter !== "all") result = result.filter(l => l.module === moduleFilter);
+    if (actionFilter !== "all") result = result.filter(l => l.action_type?.toLowerCase().includes(actionFilter));
+    if (userFilter !== "all") result = result.filter(l => l.performed_by === userFilter);
     if (search) {
       const s = search.toLowerCase();
       result = result.filter(l =>
@@ -41,7 +52,7 @@ export default function AuditLog() {
     if (dateFrom) result = result.filter(l => l.created_at >= dateFrom);
     if (dateTo) result = result.filter(l => l.created_at.slice(0, 10) <= dateTo);
     return result;
-  }, [logs, moduleFilter, search, dateFrom, dateTo]);
+  }, [logs, moduleFilter, actionFilter, userFilter, search, dateFrom, dateTo]);
 
   const { sort, toggleSort, sorted } = useSortableTable(filtered, { key: "created_at", direction: "desc" });
 
@@ -62,7 +73,26 @@ export default function AuditLog() {
           <Select value={moduleFilter} onValueChange={setModuleFilter}>
             <SelectTrigger className="w-[140px] h-8 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {MODULES.map(m => <SelectItem key={m} value={m} className="capitalize">{m}</SelectItem>)}
+              {MODULES.map(m => <SelectItem key={m} value={m} className="capitalize">{m.replace(/_/g, " ")}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground">Action</label>
+          <Select value={actionFilter} onValueChange={setActionFilter}>
+            <SelectTrigger className="w-[130px] h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {ACTION_TYPES.map(a => <SelectItem key={a} value={a} className="capitalize">{a.replace(/_/g, " ")}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground">User</label>
+          <Select value={userFilter} onValueChange={setUserFilter}>
+            <SelectTrigger className="w-[160px] h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Users</SelectItem>
+              {users.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
