@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Plus } from "lucide-react";
-import { fmt } from "@/lib/stock-helpers";
+
 import { logAudit } from "@/lib/audit";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { useSortableTable } from "@/hooks/use-sortable-table";
@@ -108,9 +108,11 @@ export default function StockAdjustments() {
 
       // Apply stock change
       if (itemType === "product") {
-        const stockField = location === "production" ? "production_stock"
-          : location === "online_shop" ? "online_shop_stock" : "shop_stock";
-        await supabase.from("products").update({ [stockField]: newQty }).eq("id", itemId);
+        const updateData: Record<string, number> = {};
+        if (location === "production") updateData.production_stock = newQty;
+        else if (location === "online_shop") updateData.online_shop_stock = newQty;
+        else updateData.shop_stock = newQty;
+        await supabase.from("products").update(updateData as any).eq("id", itemId);
       } else {
         await supabase.from("raw_materials").update({ current_stock: newQty }).eq("id", itemId);
       }
