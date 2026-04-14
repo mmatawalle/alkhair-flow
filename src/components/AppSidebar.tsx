@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Package, ShoppingCart, Factory, ArrowRightLeft,
   DollarSign, Receipt, Gift, Beaker, LogOut, Repeat, TrendingUp,
-  ClipboardList, Scale, FileText, Store, Truck
+  Scale, FileText, Store, Truck, Users
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -35,7 +35,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
-  const { signOut } = useAuth();
+  const { signOut, isSuperAdmin, userFullName } = useAuth();
 
   return (
     <Sidebar collapsible="icon">
@@ -58,11 +58,24 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              {isSuperAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={location.pathname === "/users"}>
+                    <NavLink to="/users">
+                      <Users className="mr-2 h-4 w-4" />
+                      {!collapsed && <span>Users</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
+        {!collapsed && userFullName && (
+          <p className="px-3 pb-1 text-xs text-sidebar-foreground/50 truncate">{userFullName}</p>
+        )}
         <Button variant="ghost" size="sm" onClick={signOut} className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground">
           <LogOut className="mr-2 h-4 w-4" />
           {!collapsed && "Sign Out"}

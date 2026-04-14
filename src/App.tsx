@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/AppLayout";
 import Login from "./pages/Login";
+import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import RawMaterials from "./pages/RawMaterials";
 import Products from "./pages/Products";
@@ -21,12 +22,13 @@ import AuditLog from "./pages/AuditLog";
 import StockAdjustments from "./pages/StockAdjustments";
 import Vendors from "./pages/Vendors";
 import VendorConsignments from "./pages/VendorConsignments";
+import UserManagement from "./pages/UserManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
 function ProtectedRoutes() {
-  const { user, loading } = useAuth();
+  const { user, loading, isSuperAdmin } = useAuth();
 
   if (loading) {
     return (
@@ -56,6 +58,7 @@ function ProtectedRoutes() {
         <Route path="/vendors" element={<Vendors />} />
         <Route path="/vendor-ops" element={<VendorConsignments />} />
         <Route path="/audit-log" element={<AuditLog />} />
+        {isSuperAdmin && <Route path="/users" element={<UserManagement />} />}
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AppLayout>
@@ -86,6 +89,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<AuthGate />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/*" element={<ProtectedRoutes />} />
           </Routes>
         </BrowserRouter>
