@@ -14,6 +14,7 @@ import { StockBadge, getProductStockLevel, fmt } from "@/lib/stock-helpers";
 import { useSortableTable } from "@/hooks/use-sortable-table";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import BulkProductForm from "@/components/BulkProductForm";
+import { logAudit } from "@/lib/audit";
 import type { Tables } from "@/integrations/supabase/types";
 
 const DRINK_CATEGORIES = ["Signature Milkshakes", "Fresh & Natural Series", "Native Series"];
@@ -95,9 +96,11 @@ export default function Products() {
       if (editing) {
         const { error } = await supabase.from("products").update(values).eq("id", editing.id);
         if (error) throw error;
+        await logAudit({ action_type: "edit", module: "products", record_id: editing.id, old_values: { name: editing.name, selling_price: editing.selling_price, category: editing.category }, new_values: values });
       } else {
-        const { error } = await supabase.from("products").insert(values);
+        const { data, error } = await supabase.from("products").insert(values).select("id").single();
         if (error) throw error;
+        await logAudit({ action_type: "create", module: "products", record_id: data.id, new_values: values });
       }
     },
     onSuccess: () => {

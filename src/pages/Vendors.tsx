@@ -12,6 +12,7 @@ import { Plus, Pencil } from "lucide-react";
 import { fmt } from "@/lib/stock-helpers";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { useSortableTable } from "@/hooks/use-sortable-table";
+import { logAudit } from "@/lib/audit";
 
 export default function Vendors() {
   const [open, setOpen] = useState(false);
@@ -87,9 +88,11 @@ export default function Vendors() {
       if (editingId) {
         const { error } = await supabase.from("vendors").update({ name, default_commission_rate: commissionRate }).eq("id", editingId);
         if (error) throw error;
+        await logAudit({ action_type: "edit", module: "vendors", record_id: editingId, new_values: { name, default_commission_rate: commissionRate } });
       } else {
-        const { error } = await supabase.from("vendors").insert({ name, default_commission_rate: commissionRate });
+        const { data, error } = await supabase.from("vendors").insert({ name, default_commission_rate: commissionRate }).select("id").single();
         if (error) throw error;
+        await logAudit({ action_type: "create", module: "vendors", record_id: data.id, new_values: { name, default_commission_rate: commissionRate } });
       }
     },
     onSuccess: () => {
