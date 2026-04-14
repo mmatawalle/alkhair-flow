@@ -29,6 +29,7 @@ export default function Products() {
   const [editing, setEditing] = useState<Product | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [stockFilter, setStockFilter] = useState<StockFilter>("all");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [nameFilter, setNameFilter] = useState("");
   const { toast } = useToast();
   const qc = useQueryClient();
