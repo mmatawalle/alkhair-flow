@@ -21,6 +21,7 @@ type Product = Tables<"products">;
 const emptyForm = { name: "", bottle_size: "50cl", category: "milkshake", selling_price: 0, is_active: true, vendor_id: null as string | null, commission_rate: 0 };
 
 type StockFilter = "all" | "available" | "low" | "finished";
+type TypeFilter = "all" | "drinks" | "snacks";
 
 export default function Products() {
   const [open, setOpen] = useState(false);
