@@ -265,39 +265,41 @@ export default function Purchases() {
 
       <Card>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Material</TableHead>
-                <TableHead>Qty Purchased</TableHead>
-                <TableHead>Converted Qty</TableHead>
-                <TableHead>Total Cost</TableHead>
-                <TableHead>Cost/Unit</TableHead>
-                <TableHead>Supplier</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow><TableCell colSpan={8} className="text-center">Loading...</TableCell></TableRow>
-              ) : purchases?.map((p: any) => (
-                <TableRow key={p.id}>
-                  <TableCell>{p.purchase_date}</TableCell>
-                  <TableCell className="font-medium">{p.raw_materials?.name}</TableCell>
-                  <TableCell>{p.quantity_purchased} {p.purchase_unit}</TableCell>
-                  <TableCell>{p.converted_quantity} {p.raw_materials?.usage_unit}</TableCell>
-                  <TableCell>{fmt(p.total_cost)}</TableCell>
-                  <TableCell>{fmt(p.cost_per_usage_unit)}</TableCell>
-                  <TableCell>{p.supplier || "—"}</TableCell>
-                  <TableCell className="text-right space-x-1">
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(p)} title="Edit"><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(p)} title="Delete"><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Material</TableHead>
+                  <TableHead className="hidden md:table-cell">Qty</TableHead>
+                  <TableHead>Converted</TableHead>
+                  <TableHead>Cost</TableHead>
+                  <TableHead className="hidden md:table-cell">Cost/Unit</TableHead>
+                  <TableHead className="hidden md:table-cell">Supplier</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow><TableCell colSpan={8} className="text-center">Loading...</TableCell></TableRow>
+                ) : purchases?.map((p: any) => (
+                  <TableRow key={p.id}>
+                    <TableCell className="whitespace-nowrap">{p.purchase_date}</TableCell>
+                    <TableCell className="font-medium">{p.raw_materials?.name}</TableCell>
+                    <TableCell className="hidden md:table-cell">{p.quantity_purchased} {p.purchase_unit}</TableCell>
+                    <TableCell>{p.converted_quantity} {p.raw_materials?.usage_unit}</TableCell>
+                    <TableCell>{fmt(p.total_cost)}</TableCell>
+                    <TableCell className="hidden md:table-cell">{fmt(p.cost_per_usage_unit)}</TableCell>
+                    <TableCell className="hidden md:table-cell">{p.supplier || "—"}</TableCell>
+                    <TableCell className="text-right space-x-1">
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(p)} title="Edit"><Pencil className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(p)} title="Delete"><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 
