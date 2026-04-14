@@ -64,9 +64,11 @@ export default function Products() {
   const filtered = useMemo(() => {
     let list = enriched;
     if (stockFilter !== "all") list = list.filter(p => p.stock_level === stockFilter);
+    if (typeFilter === "drinks") list = list.filter(p => !p.vendor_id);
+    if (typeFilter === "snacks") list = list.filter(p => !!p.vendor_id);
     if (nameFilter) list = list.filter(p => p.name.toLowerCase().includes(nameFilter.toLowerCase()));
     return list;
-  }, [enriched, stockFilter, nameFilter]);
+  }, [enriched, stockFilter, typeFilter, nameFilter]);
 
   const { sort, toggleSort, sorted } = useSortableTable(filtered, { key: "name", direction: "asc" });
 
