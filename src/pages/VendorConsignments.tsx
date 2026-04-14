@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, FileText } from "lucide-react";
 import { fmt } from "@/lib/stock-helpers";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { useSortableTable } from "@/hooks/use-sortable-table";
@@ -42,6 +42,7 @@ export default function VendorConsignments() {
   const [dmgDate, setDmgDate] = useState(new Date().toISOString().split("T")[0]);
   const [dmgNote, setDmgNote] = useState("");
   const [deleteId, setDeleteId] = useState<{ id: string; type: string } | null>(null);
+  const [receiptPayment, setReceiptPayment] = useState<any>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const { toast } = useToast();
@@ -300,9 +301,14 @@ export default function VendorConsignments() {
                         <TableCell>{fmt(p.amount)}</TableCell>
                         <TableCell className="hidden md:table-cell text-muted-foreground text-sm">{p.note || "—"}</TableCell>
                         <TableCell>
-                          <Button variant="ghost" size="icon" onClick={() => setDeleteId({ id: p.id, type: "payment" })}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="icon" onClick={() => setReceiptPayment(p)}>
+                              <FileText className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => setDeleteId({ id: p.id, type: "payment" })}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
