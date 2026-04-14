@@ -1,0 +1,1 @@
+ALTER TABLE public.expense_records ADD COLUMN IF NOT EXISTS payment_source text NOT NULL DEFAULT 'cash';
