@@ -191,83 +191,134 @@ export default function Sales() {
   const { sort, toggleSort, sorted } = useSortableTable(filtered);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <h2 className="text-2xl font-bold text-foreground">Sales</h2>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => {
+    <div className="page-container">
+      <div className="page-header">
+        <div>
+          <h2 className="page-title">Sales</h2>
+        </div>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button variant="outline" className="flex-1 sm:flex-none" onClick={() => {
             if (!filtered?.length) return;
             downloadCSV("sales.csv",
               ["Date", "Product", "Source", "Qty", "Revenue", "COGS", "Profit", "Type", "Voided"],
               filtered.map((s: any) => [s.sale_date, `${s.products?.name} (${s.products?.bottle_size})`, s.sale_source, s.quantity_sold, s.total_revenue, s.total_cogs, s.profit, s.sale_type, s.voided ? "Yes" : "No"])
             );
           }}><Download className="mr-2 h-4 w-4" />Export</Button>
-          <Button onClick={() => { resetForm(); setOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Sale</Button>
+          <Button className="flex-1 sm:flex-none" onClick={() => { resetForm(); setOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Sale</Button>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
+      <div className="filter-bar">
+        <div className="w-full sm:w-auto">
           <label className="text-xs text-muted-foreground">Search</label>
-          <Input placeholder="Search product..." value={searchText} onChange={e => setSearchText(e.target.value)} className="w-[160px] h-8 text-sm" />
+          <Input placeholder="Search product..." value={searchText} onChange={e => setSearchText(e.target.value)} className="w-full sm:w-[180px]" />
         </div>
         <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} onClear={() => { setDateFrom(""); setDateTo(""); }} />
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <SortableTableHead label="Date" sortKey="sale_date" sort={sort} onToggle={toggleSort} />
-                  <TableHead>Product</TableHead>
-                  <TableHead className="hidden md:table-cell">Source</TableHead>
-                  <SortableTableHead label="Qty" sortKey="quantity_sold" sort={sort} onToggle={toggleSort} />
-                  <SortableTableHead label="Revenue" sortKey="total_revenue" sort={sort} onToggle={toggleSort} />
-                  <TableHead className="hidden md:table-cell">COGS</TableHead>
-                  <SortableTableHead label="Profit" sortKey="profit" sort={sort} onToggle={toggleSort} />
-                  <TableHead className="hidden md:table-cell">Type</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow><TableCell colSpan={9} className="text-center">Loading...</TableCell></TableRow>
-              ) : sorted.map((s: any) => (
-                <TableRow key={s.id} className={s.voided ? "opacity-40 line-through" : ""}>
-                  <TableCell className="whitespace-nowrap">{s.sale_date}</TableCell>
-                  <TableCell className="font-medium">{s.products?.name} <span className="text-muted-foreground text-xs">({s.products?.bottle_size})</span></TableCell>
-                  <TableCell className="hidden md:table-cell"><Badge variant="outline" className="capitalize">{s.sale_source === "online_shop" ? "Online" : "Shop"}</Badge></TableCell>
-                  <TableCell>{s.quantity_sold}</TableCell>
-                  <TableCell>{fmt(s.total_revenue)}</TableCell>
-                  <TableCell className="hidden md:table-cell">{fmt(s.total_cogs)}</TableCell>
-                  <TableCell className={Number(s.profit) >= 0 ? "text-emerald-600" : "text-destructive"}>{fmt(s.profit)}</TableCell>
-                  <TableCell className="hidden md:table-cell"><Badge variant="outline">{s.voided ? "VOIDED" : s.sale_type}</Badge></TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" title="Receipt" onClick={() => setReceiptSale(s)}>
-                        <Receipt className="h-4 w-4" />
-                      </Button>
-                      {!s.voided && (
-                        <>
-                          <Button variant="ghost" size="icon" title="Edit" onClick={() => openEdit(s)}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" title="Void" onClick={() => setVoidId(s.id)}>
-                            <Ban className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+      {/* Mobile card list */}
+      <div className="mobile-card-list">
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground text-center py-8">Loading...</p>
+        ) : sorted.map((s: any) => (
+          <div key={s.id} className={`mobile-card-item ${s.voided ? "opacity-40" : ""}`}>
+            <div className="mobile-card-header">
+              <div>
+                <p className="mobile-card-title">{s.products?.name} <span className="text-muted-foreground font-normal">({s.products?.bottle_size})</span></p>
+                <p className="text-xs text-muted-foreground">{s.sale_date} · {s.sale_source === "online_shop" ? "Online" : "Shop"}</p>
+              </div>
+              <Badge variant="outline" className="text-xs shrink-0">{s.voided ? "VOIDED" : s.sale_type}</Badge>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <p className="mobile-card-label">Qty</p>
+                <p className="mobile-card-value">{s.quantity_sold}</p>
+              </div>
+              <div>
+                <p className="mobile-card-label">Revenue</p>
+                <p className="mobile-card-value">{fmt(s.total_revenue)}</p>
+              </div>
+              <div>
+                <p className="mobile-card-label">Profit</p>
+                <p className={`mobile-card-value ${Number(s.profit) >= 0 ? "text-emerald-600" : "text-destructive"}`}>{fmt(s.profit)}</p>
+              </div>
+            </div>
+            <div className="mobile-card-actions">
+              <Button variant="ghost" size="sm" className="h-8" onClick={() => setReceiptSale(s)}>
+                <Receipt className="h-3.5 w-3.5 mr-1" /> Receipt
+              </Button>
+              {!s.voided && (
+                <>
+                  <Button variant="ghost" size="sm" className="h-8" onClick={() => openEdit(s)}>
+                    <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-8 text-destructive" onClick={() => setVoidId(s.id)}>
+                    <Ban className="h-3.5 w-3.5 mr-1" /> Void
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
-        </CardContent>
-      </Card>
+        ))}
+      </div>
+
+      {/* Desktop table */}
+      <div className="desktop-table">
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto scrollbar-thin">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <SortableTableHead label="Date" sortKey="sale_date" sort={sort} onToggle={toggleSort} />
+                    <TableHead>Product</TableHead>
+                    <TableHead>Source</TableHead>
+                    <SortableTableHead label="Qty" sortKey="quantity_sold" sort={sort} onToggle={toggleSort} />
+                    <SortableTableHead label="Revenue" sortKey="total_revenue" sort={sort} onToggle={toggleSort} />
+                    <TableHead>COGS</TableHead>
+                    <SortableTableHead label="Profit" sortKey="profit" sort={sort} onToggle={toggleSort} />
+                    <TableHead>Type</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow><TableCell colSpan={9} className="text-center">Loading...</TableCell></TableRow>
+                  ) : sorted.map((s: any) => (
+                    <TableRow key={s.id} className={s.voided ? "opacity-40 line-through" : ""}>
+                      <TableCell className="whitespace-nowrap">{s.sale_date}</TableCell>
+                      <TableCell className="font-medium">{s.products?.name} <span className="text-muted-foreground text-xs">({s.products?.bottle_size})</span></TableCell>
+                      <TableCell><Badge variant="outline" className="capitalize">{s.sale_source === "online_shop" ? "Online" : "Shop"}</Badge></TableCell>
+                      <TableCell>{s.quantity_sold}</TableCell>
+                      <TableCell>{fmt(s.total_revenue)}</TableCell>
+                      <TableCell>{fmt(s.total_cogs)}</TableCell>
+                      <TableCell className={Number(s.profit) >= 0 ? "text-emerald-600" : "text-destructive"}>{fmt(s.profit)}</TableCell>
+                      <TableCell><Badge variant="outline">{s.voided ? "VOIDED" : s.sale_type}</Badge></TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" title="Receipt" onClick={() => setReceiptSale(s)}>
+                            <Receipt className="h-4 w-4" />
+                          </Button>
+                          {!s.voided && (
+                            <>
+                              <Button variant="ghost" size="icon" title="Edit" onClick={() => openEdit(s)}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" title="Void" onClick={() => setVoidId(s.id)}>
+                                <Ban className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
         <DialogContent>

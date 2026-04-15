@@ -136,56 +136,90 @@ export default function Transfers() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <h2 className="text-2xl font-bold text-foreground">Transfer Stock</h2>
-        <div className="flex gap-2">
-          <Button onClick={() => openWithDest("shop")} size="sm"><Truck className="mr-1 h-4 w-4" />To Shop</Button>
-          <Button variant="outline" onClick={() => openWithDest("online_shop")} size="sm"><Truck className="mr-1 h-4 w-4" />To Online</Button>
+    <div className="page-container">
+      <div className="page-header">
+        <h2 className="page-title">Transfer Stock</h2>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button onClick={() => openWithDest("shop")} size="sm" className="flex-1 sm:flex-none"><Truck className="mr-1 h-4 w-4" />To Shop</Button>
+          <Button variant="outline" onClick={() => openWithDest("online_shop")} size="sm" className="flex-1 sm:flex-none"><Truck className="mr-1 h-4 w-4" />To Online</Button>
         </div>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Qty</TableHead>
-                  <TableHead>Destination</TableHead>
-                  <TableHead className="hidden md:table-cell">Note</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow>
-                ) : transfers?.map((t: any) => {
-                  const dest = t.note?.includes("Online Shop") ? "Online" : "Shop";
-                  return (
-                    <TableRow key={t.id} className={t.voided ? "opacity-40 line-through" : ""}>
-                      <TableCell className="whitespace-nowrap">{t.transfer_date}</TableCell>
-                      <TableCell className="font-medium">{t.products?.name} <span className="text-muted-foreground text-xs">({t.products?.bottle_size})</span></TableCell>
-                      <TableCell>{t.quantity_transferred}</TableCell>
-                      <TableCell><Badge variant="outline">{t.voided ? "VOIDED" : dest}</Badge></TableCell>
-                      <TableCell className="hidden md:table-cell">{t.note?.replace(/\[→ (?:Online Shop|Shop)\]\s?/, "") || "—"}</TableCell>
-                      <TableCell>
-                        {!t.voided && (
-                          <Button variant="ghost" size="icon" title="Void" onClick={() => setVoidId(t.id)}>
-                            <Ban className="h-4 w-4 text-destructive" />
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Mobile card list */}
+      <div className="mobile-card-list">
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground text-center py-8">Loading...</p>
+        ) : transfers?.map((t: any) => {
+          const dest = t.note?.includes("Online Shop") ? "Online" : "Shop";
+          return (
+            <div key={t.id} className={`mobile-card-item ${t.voided ? "opacity-40" : ""}`}>
+              <div className="mobile-card-header">
+                <div>
+                  <p className="mobile-card-title">{t.products?.name} <span className="text-muted-foreground font-normal">({t.products?.bottle_size})</span></p>
+                  <p className="text-xs text-muted-foreground">{t.transfer_date}</p>
+                </div>
+                <Badge variant="outline" className="text-xs">{t.voided ? "VOIDED" : dest}</Badge>
+              </div>
+              <div className="mobile-card-row">
+                <span className="text-sm text-muted-foreground">Quantity</span>
+                <span className="text-sm font-semibold">{t.quantity_transferred} units</span>
+              </div>
+              {!t.voided && (
+                <div className="mobile-card-actions">
+                  <Button variant="ghost" size="sm" className="h-8 text-destructive" onClick={() => setVoidId(t.id)}>
+                    <Ban className="h-3.5 w-3.5 mr-1" /> Void
+                  </Button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop table */}
+      <div className="desktop-table">
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto scrollbar-thin">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Product</TableHead>
+                    <TableHead>Qty</TableHead>
+                    <TableHead>Destination</TableHead>
+                    <TableHead>Note</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow>
+                  ) : transfers?.map((t: any) => {
+                    const dest = t.note?.includes("Online Shop") ? "Online" : "Shop";
+                    return (
+                      <TableRow key={t.id} className={t.voided ? "opacity-40 line-through" : ""}>
+                        <TableCell className="whitespace-nowrap">{t.transfer_date}</TableCell>
+                        <TableCell className="font-medium">{t.products?.name} <span className="text-muted-foreground text-xs">({t.products?.bottle_size})</span></TableCell>
+                        <TableCell>{t.quantity_transferred}</TableCell>
+                        <TableCell><Badge variant="outline">{t.voided ? "VOIDED" : dest}</Badge></TableCell>
+                        <TableCell>{t.note?.replace(/\[→ (?:Online Shop|Shop)\]\s?/, "") || "—"}</TableCell>
+                        <TableCell>
+                          {!t.voided && (
+                            <Button variant="ghost" size="icon" title="Void" onClick={() => setVoidId(t.id)}>
+                              <Ban className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>

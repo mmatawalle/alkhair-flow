@@ -120,24 +120,23 @@ export default function Products() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-foreground">Products</h2>
-        <Button onClick={() => setBulkOpen(true)}><Plus className="mr-2 h-4 w-4" />Add Product</Button>
+    <div className="page-container">
+      <div className="page-header">
+        <h2 className="page-title">Products</h2>
+        <Button onClick={() => setBulkOpen(true)} className="w-full sm:w-auto"><Plus className="mr-2 h-4 w-4" />Add Product</Button>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Input placeholder="Search by name..." value={nameFilter} onChange={e => setNameFilter(e.target.value)} className="w-48" />
-        <div className="flex gap-1">
+      <div className="filter-bar">
+        <Input placeholder="Search by name..." value={nameFilter} onChange={e => setNameFilter(e.target.value)} className="w-full sm:w-48" />
+        <div className="flex gap-1 flex-wrap">
           {(["all", "available", "low", "finished"] as StockFilter[]).map(s => (
             <Button key={s} size="sm" variant={stockFilter === s ? "default" : "outline"} onClick={() => setStockFilter(s)} className="capitalize text-xs">
               {s === "all" ? "All" : s}
             </Button>
           ))}
         </div>
-        <div className="h-4 w-px bg-border" />
-        <div className="flex gap-1">
+        <div className="flex gap-1 flex-wrap">
           {(["all", "drinks", "snacks"] as TypeFilter[]).map(t => (
             <Button key={t} size="sm" variant={typeFilter === t ? "default" : "outline"} onClick={() => setTypeFilter(t)} className="capitalize text-xs">
               {t === "all" ? "All Types" : t}
@@ -147,71 +146,126 @@ export default function Products() {
       </div>
 
       {isLoading ? (
-        <p className="text-muted-foreground">Loading...</p>
+        <p className="text-muted-foreground text-center py-8">Loading...</p>
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <SortableTableHead label="Name" sortKey="name" sort={sort} onToggle={toggleSort} />
-                  <TableHead>Size</TableHead>
-                  <SortableTableHead label="Price" sortKey="selling_price" sort={sort} onToggle={toggleSort} />
-                  <SortableTableHead label="Prod. Stock" sortKey="production_stock" sort={sort} onToggle={toggleSort} />
-                  <SortableTableHead label="Shop Stock" sortKey="shop_stock" sort={sort} onToggle={toggleSort} />
-                  <SortableTableHead label="Online Stock" sortKey="online_shop_stock" sort={sort} onToggle={toggleSort} />
-                  <TableHead>Status</TableHead>
-                  <SortableTableHead label="Cost/Unit" sortKey="average_cost_per_unit" sort={sort} onToggle={toggleSort} />
-                  <TableHead>Margin</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sorted.map(p => {
-                  const margin = p.selling_price - p.average_cost_per_unit;
-                  return (
-                    <TableRow key={p.id}>
-                      <TableCell className="font-medium">{p.name}</TableCell>
-                      <TableCell>{p.bottle_size}</TableCell>
-                      <TableCell>{fmt(p.selling_price)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <StockBadge level={getProductStockLevel(Number(p.production_stock))} />
-                          <span>{p.production_stock}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <StockBadge level={getProductStockLevel(Number(p.shop_stock))} />
-                          <span>{p.shop_stock}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <StockBadge level={getProductStockLevel(Number(p.online_shop_stock))} />
-                          <span>{p.online_shop_stock}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell><Badge variant={p.is_active ? "default" : "secondary"}>{p.is_active ? "Active" : "Off"}</Badge></TableCell>
-                      <TableCell>{fmt(p.average_cost_per_unit)}</TableCell>
-                      <TableCell className={margin >= 0 ? "text-emerald-600" : "text-destructive"}>{fmt(margin)}</TableCell>
-                      <TableCell><Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button></TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <>
+          {/* Mobile card list */}
+          <div className="mobile-card-list">
+            {sorted.map(p => {
+              const margin = p.selling_price - p.average_cost_per_unit;
+              return (
+                <div key={p.id} className="mobile-card-item">
+                  <div className="mobile-card-header">
+                    <div>
+                      <p className="mobile-card-title">{p.name}</p>
+                      <p className="text-xs text-muted-foreground">{p.bottle_size} · {p.category}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={p.is_active ? "default" : "secondary"} className="text-xs">{p.is_active ? "Active" : "Off"}</Badge>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(p)}><Pencil className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <p className="mobile-card-label">Prod</p>
+                      <div className="flex items-center gap-1">
+                        <StockBadge level={getProductStockLevel(Number(p.production_stock))} />
+                        <span className="text-sm">{p.production_stock}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="mobile-card-label">Shop</p>
+                      <div className="flex items-center gap-1">
+                        <StockBadge level={getProductStockLevel(Number(p.shop_stock))} />
+                        <span className="text-sm">{p.shop_stock}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="mobile-card-label">Online</p>
+                      <div className="flex items-center gap-1">
+                        <StockBadge level={getProductStockLevel(Number(p.online_shop_stock))} />
+                        <span className="text-sm">{p.online_shop_stock}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mobile-card-row pt-1">
+                    <span className="text-xs text-muted-foreground">Price: {fmt(p.selling_price)}</span>
+                    <span className={`text-xs font-medium ${margin >= 0 ? "text-emerald-600" : "text-destructive"}`}>Margin: {fmt(margin)}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="desktop-table">
+            <Card>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto scrollbar-thin">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <SortableTableHead label="Name" sortKey="name" sort={sort} onToggle={toggleSort} />
+                        <TableHead>Size</TableHead>
+                        <SortableTableHead label="Price" sortKey="selling_price" sort={sort} onToggle={toggleSort} />
+                        <SortableTableHead label="Prod." sortKey="production_stock" sort={sort} onToggle={toggleSort} />
+                        <SortableTableHead label="Shop" sortKey="shop_stock" sort={sort} onToggle={toggleSort} />
+                        <SortableTableHead label="Online" sortKey="online_shop_stock" sort={sort} onToggle={toggleSort} />
+                        <TableHead>Status</TableHead>
+                        <SortableTableHead label="Cost" sortKey="average_cost_per_unit" sort={sort} onToggle={toggleSort} />
+                        <TableHead>Margin</TableHead>
+                        <TableHead></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sorted.map(p => {
+                        const margin = p.selling_price - p.average_cost_per_unit;
+                        return (
+                          <TableRow key={p.id}>
+                            <TableCell className="font-medium">{p.name}</TableCell>
+                            <TableCell>{p.bottle_size}</TableCell>
+                            <TableCell>{fmt(p.selling_price)}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <StockBadge level={getProductStockLevel(Number(p.production_stock))} />
+                                <span>{p.production_stock}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <StockBadge level={getProductStockLevel(Number(p.shop_stock))} />
+                                <span>{p.shop_stock}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <StockBadge level={getProductStockLevel(Number(p.online_shop_stock))} />
+                                <span>{p.online_shop_stock}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell><Badge variant={p.is_active ? "default" : "secondary"}>{p.is_active ? "Active" : "Off"}</Badge></TableCell>
+                            <TableCell>{fmt(p.average_cost_per_unit)}</TableCell>
+                            <TableCell className={margin >= 0 ? "text-emerald-600" : "text-destructive"}>{fmt(margin)}</TableCell>
+                            <TableCell><Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button></TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </>
       )}
 
       {/* Edit single product dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Edit Product</DialogTitle></DialogHeader>
-          <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(form); }} className="space-y-3">
+          <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(form); }} className="space-y-4">
             <Input placeholder="Product Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Select value={form.bottle_size} onValueChange={(v) => setForm({ ...form, bottle_size: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>

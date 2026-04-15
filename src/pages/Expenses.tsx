@@ -117,23 +117,23 @@ export default function Expenses() {
   const { sort, toggleSort, sorted } = useSortableTable(filtered);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <h2 className="text-2xl font-bold text-foreground">Expenses</h2>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => {
+    <div className="page-container">
+      <div className="page-header">
+        <h2 className="page-title">Expenses</h2>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button variant="outline" className="flex-1 sm:flex-none" onClick={() => {
             if (!filtered?.length) return;
             downloadCSV("expenses.csv",
               ["Date", "Side", "Category", "Amount", "Description", "Payment"],
               filtered.map(e => [e.expense_date, e.expense_side, e.category_code, e.amount, e.description || "", e.payment_nature])
             );
           }}><Download className="mr-2 h-4 w-4" />Export</Button>
-          <Button onClick={() => { resetForm(); setOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Expense</Button>
+          <Button className="flex-1 sm:flex-none" onClick={() => { resetForm(); setOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Expense</Button>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-end gap-4">
-        <div className="flex gap-2">
+      <div className="filter-bar">
+        <div className="flex gap-2 flex-wrap">
           {["all", "shop", "production"].map(s => (
             <Button key={s} variant={filterSide === s ? "default" : "outline"} size="sm" onClick={() => setFilterSide(s)} className="capitalize">
               {s}
@@ -143,52 +143,87 @@ export default function Expenses() {
         <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} onClear={() => { setDateFrom(""); setDateTo(""); }} />
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <SortableTableHead label="Date" sortKey="expense_date" sort={sort} onToggle={toggleSort} />
-                  <TableHead>Side</TableHead>
-                  <TableHead>Category</TableHead>
-                  <SortableTableHead label="Amount" sortKey="amount" sort={sort} onToggle={toggleSort} />
-                  <TableHead className="hidden md:table-cell">Description</TableHead>
-                  <TableHead className="hidden md:table-cell">Payment</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow><TableCell colSpan={7} className="text-center">Loading...</TableCell></TableRow>
-                ) : sorted.map((e: any) => (
-                  <TableRow key={e.id}>
-                    <TableCell className="whitespace-nowrap">{e.expense_date}</TableCell>
-                    <TableCell><Badge variant={e.expense_side === "shop" ? "default" : "secondary"} className="capitalize text-xs">{e.expense_side}</Badge></TableCell>
-                    <TableCell className="capitalize">{e.category_code}</TableCell>
-                    <TableCell className="font-medium">{fmt(e.amount)}</TableCell>
-                    <TableCell className="hidden md:table-cell">{e.description || "—"}</TableCell>
-                    <TableCell className="hidden md:table-cell capitalize text-muted-foreground">{e.payment_nature?.replace(/_/g, " ")}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" title="View Receipt" onClick={() => setReceiptExpense(e)}><Eye className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(e)}><Pencil className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => setDeleteId(e.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+      {/* Mobile card list */}
+      <div className="mobile-card-list">
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground text-center py-8">Loading...</p>
+        ) : sorted.map((e: any) => (
+          <div key={e.id} className="mobile-card-item">
+            <div className="mobile-card-header">
+              <div>
+                <p className="mobile-card-title capitalize">{e.category_code}</p>
+                <p className="text-xs text-muted-foreground">{e.expense_date}</p>
+              </div>
+              <Badge variant={e.expense_side === "shop" ? "default" : "secondary"} className="capitalize text-xs">{e.expense_side}</Badge>
+            </div>
+            <div className="mobile-card-row">
+              <span className="text-muted-foreground text-sm">{e.description || "—"}</span>
+              <span className="font-semibold text-sm">{fmt(e.amount)}</span>
+            </div>
+            <div className="mobile-card-actions">
+              <Button variant="ghost" size="sm" className="h-8" onClick={() => setReceiptExpense(e)}>
+                <Eye className="h-3.5 w-3.5 mr-1" /> View
+              </Button>
+              <Button variant="ghost" size="sm" className="h-8" onClick={() => openEdit(e)}>
+                <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
+              </Button>
+              <Button variant="ghost" size="sm" className="h-8 text-destructive" onClick={() => setDeleteId(e.id)}>
+                <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+              </Button>
+            </div>
           </div>
-        </CardContent>
-      </Card>
+        ))}
+      </div>
+
+      {/* Desktop table */}
+      <div className="desktop-table">
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto scrollbar-thin">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <SortableTableHead label="Date" sortKey="expense_date" sort={sort} onToggle={toggleSort} />
+                    <TableHead>Side</TableHead>
+                    <TableHead>Category</TableHead>
+                    <SortableTableHead label="Amount" sortKey="amount" sort={sort} onToggle={toggleSort} />
+                    <TableHead>Description</TableHead>
+                    <TableHead>Payment</TableHead>
+                    <TableHead></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow><TableCell colSpan={7} className="text-center">Loading...</TableCell></TableRow>
+                  ) : sorted.map((e: any) => (
+                    <TableRow key={e.id}>
+                      <TableCell className="whitespace-nowrap">{e.expense_date}</TableCell>
+                      <TableCell><Badge variant={e.expense_side === "shop" ? "default" : "secondary"} className="capitalize text-xs">{e.expense_side}</Badge></TableCell>
+                      <TableCell className="capitalize">{e.category_code}</TableCell>
+                      <TableCell className="font-medium">{fmt(e.amount)}</TableCell>
+                      <TableCell>{e.description || "—"}</TableCell>
+                      <TableCell className="capitalize text-muted-foreground">{e.payment_nature?.replace(/_/g, " ")}</TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" title="View Receipt" onClick={() => setReceiptExpense(e)}><Eye className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => openEdit(e)}><Pencil className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => setDeleteId(e.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>{editingId ? "Edit Expense" : "Add Expense"}</DialogTitle></DialogHeader>
-          <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+          <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-sm text-muted-foreground">Side</label>
                 <Select value={form.expense_side} onValueChange={(v) => setForm({ ...form, expense_side: v })}>
@@ -216,7 +251,7 @@ export default function Expenses() {
             <Input type="date" value={form.expense_date} onChange={(e) => setForm({ ...form, expense_date: e.target.value })} />
             <Input placeholder="What was it for?" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
             <Input placeholder="Who asked? (optional)" value={form.requested_by} onChange={(e) => setForm({ ...form, requested_by: e.target.value })} />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-sm text-muted-foreground">Payment type</label>
                 <Select value={form.payment_nature} onValueChange={(v) => setForm({ ...form, payment_nature: v })}>

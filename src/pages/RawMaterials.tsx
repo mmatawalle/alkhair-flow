@@ -114,16 +114,16 @@ export default function RawMaterials() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-foreground">Raw Materials</h2>
-        <Button onClick={() => { setEditing(null); setForm(emptyForm); setOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Material</Button>
+    <div className="page-container">
+      <div className="page-header">
+        <h2 className="page-title">Raw Materials</h2>
+        <Button onClick={() => { setEditing(null); setForm(emptyForm); setOpen(true); }} className="w-full sm:w-auto"><Plus className="mr-2 h-4 w-4" />Add Material</Button>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Input placeholder="Search by name..." value={nameFilter} onChange={e => setNameFilter(e.target.value)} className="w-48" />
-        <div className="flex gap-1">
+      <div className="filter-bar">
+        <Input placeholder="Search by name..." value={nameFilter} onChange={e => setNameFilter(e.target.value)} className="w-full sm:w-48" />
+        <div className="flex gap-1 flex-wrap">
           {(["all", "available", "low", "finished"] as StockFilter[]).map(s => (
             <Button key={s} size="sm" variant={stockFilter === s ? "default" : "outline"} onClick={() => setStockFilter(s)} className="capitalize text-xs">
               {s === "all" ? "All" : s}
@@ -132,65 +132,114 @@ export default function RawMaterials() {
         </div>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Status</TableHead>
-                <SortableTableHead label="Name" sortKey="name" sort={sort} onToggle={toggleSort} />
-                <SortableTableHead label="Stock" sortKey="current_stock" sort={sort} onToggle={toggleSort} />
-                <TableHead>Unit</TableHead>
-                <SortableTableHead label="Avg Cost" sortKey="average_cost_per_usage_unit" sort={sort} onToggle={toggleSort} />
-                <TableHead>Last Purchase</TableHead>
-                <SortableTableHead label="Reorder" sortKey="reorder_level" sort={sort} onToggle={toggleSort} />
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow><TableCell colSpan={8} className="text-center">Loading...</TableCell></TableRow>
-              ) : sorted.map((m) => {
-                const needsReorder = m.stock_level !== "available";
-                return (
-                  <TableRow key={m.id}>
-                    <TableCell><StockBadge level={m.stock_level} /></TableCell>
-                    <TableCell className="font-medium">{m.name}</TableCell>
-                    <TableCell className="font-semibold">{m.current_stock} {m.usage_unit}</TableCell>
-                    <TableCell className="text-muted-foreground">{m.purchase_unit} → {m.usage_unit}</TableCell>
-                    <TableCell>{fmt(m.average_cost_per_usage_unit)}/{m.usage_unit}</TableCell>
-                    <TableCell className="text-muted-foreground">{lastPurchases?.[m.id] || "—"}</TableCell>
-                    <TableCell>
-                      {needsReorder ? (
-                        <span className="text-xs text-amber-600 font-medium">Reorder now</span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">{m.reorder_level}</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(m)}><Pencil className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => setDeleteId(m.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                      </div>
-                    </TableCell>
+      {/* Mobile card list */}
+      <div className="mobile-card-list">
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground text-center py-8">Loading...</p>
+        ) : sorted.map((m) => {
+          const needsReorder = m.stock_level !== "available";
+          return (
+            <div key={m.id} className="mobile-card-item">
+              <div className="mobile-card-header">
+                <div>
+                  <p className="mobile-card-title">{m.name}</p>
+                  <p className="text-xs text-muted-foreground">{m.purchase_unit} → {m.usage_unit}</p>
+                </div>
+                <StockBadge level={m.stock_level} />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <p className="mobile-card-label">Stock</p>
+                  <p className="mobile-card-value">{m.current_stock} {m.usage_unit}</p>
+                </div>
+                <div>
+                  <p className="mobile-card-label">Avg Cost</p>
+                  <p className="mobile-card-value">{fmt(m.average_cost_per_usage_unit)}</p>
+                </div>
+                <div>
+                  <p className="mobile-card-label">Reorder</p>
+                  <p className="mobile-card-value">
+                    {needsReorder ? <span className="text-amber-600 font-medium">Now!</span> : m.reorder_level}
+                  </p>
+                </div>
+              </div>
+              <div className="mobile-card-actions">
+                <Button variant="ghost" size="sm" className="h-8" onClick={() => openEdit(m)}>
+                  <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
+                </Button>
+                <Button variant="ghost" size="sm" className="h-8 text-destructive" onClick={() => setDeleteId(m.id)}>
+                  <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop table */}
+      <div className="desktop-table">
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto scrollbar-thin">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Status</TableHead>
+                    <SortableTableHead label="Name" sortKey="name" sort={sort} onToggle={toggleSort} />
+                    <SortableTableHead label="Stock" sortKey="current_stock" sort={sort} onToggle={toggleSort} />
+                    <TableHead>Unit</TableHead>
+                    <SortableTableHead label="Avg Cost" sortKey="average_cost_per_usage_unit" sort={sort} onToggle={toggleSort} />
+                    <TableHead>Last Purchase</TableHead>
+                    <SortableTableHead label="Reorder" sortKey="reorder_level" sort={sort} onToggle={toggleSort} />
+                    <TableHead></TableHead>
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow><TableCell colSpan={8} className="text-center">Loading...</TableCell></TableRow>
+                  ) : sorted.map((m) => {
+                    const needsReorder = m.stock_level !== "available";
+                    return (
+                      <TableRow key={m.id}>
+                        <TableCell><StockBadge level={m.stock_level} /></TableCell>
+                        <TableCell className="font-medium">{m.name}</TableCell>
+                        <TableCell className="font-semibold">{m.current_stock} {m.usage_unit}</TableCell>
+                        <TableCell className="text-muted-foreground">{m.purchase_unit} → {m.usage_unit}</TableCell>
+                        <TableCell>{fmt(m.average_cost_per_usage_unit)}/{m.usage_unit}</TableCell>
+                        <TableCell className="text-muted-foreground">{lastPurchases?.[m.id] || "—"}</TableCell>
+                        <TableCell>
+                          {needsReorder ? (
+                            <span className="text-xs text-amber-600 font-medium">Reorder now</span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">{m.reorder_level}</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="icon" onClick={() => openEdit(m)}><Pencil className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => setDeleteId(m.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Raw Material</DialogTitle></DialogHeader>
-          <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(form); }} className="space-y-3">
+          <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(form); }} className="space-y-4">
             <Input placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Input placeholder="Purchase Unit (e.g. bag)" value={form.purchase_unit} onChange={(e) => setForm({ ...form, purchase_unit: e.target.value })} required />
               <Input placeholder="Usage Unit (e.g. mudu)" value={form.usage_unit} onChange={(e) => setForm({ ...form, usage_unit: e.target.value })} required />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-sm text-muted-foreground">Current Stock (read-only)</label>
                 <Input type="number" value={form.current_stock} disabled className="bg-muted" />

@@ -191,58 +191,102 @@ export default function StockAdjustments() {
   });
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <h2 className="text-2xl font-bold text-foreground">Stock Adjustments</h2>
-        <Button onClick={() => { resetForm(); setOpen(true); }}><Plus className="mr-2 h-4 w-4" />New Adjustment</Button>
+    <div className="page-container">
+      <div className="page-header">
+        <h2 className="page-title">Stock Adjustments</h2>
+        <Button onClick={() => { resetForm(); setOpen(true); }} className="w-full sm:w-auto"><Plus className="mr-2 h-4 w-4" />New Adjustment</Button>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <SortableTableHead label="Date" sortKey="adjustment_date" sort={sort} onToggle={toggleSort} />
-                  <TableHead>Type</TableHead>
-                  <TableHead>Item</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Old → New</TableHead>
-                  <SortableTableHead label="Change" sortKey="adjustment_amount" sort={sort} onToggle={toggleSort} />
-                  <TableHead>Reason</TableHead>
-                  <TableHead>By</TableHead>
-                  <TableHead className="w-10"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow><TableCell colSpan={9} className="text-center">Loading...</TableCell></TableRow>
-                ) : sorted.length === 0 ? (
-                  <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">No adjustments yet</TableCell></TableRow>
-                ) : sorted.map((adj: any) => (
-                  <TableRow key={adj.id}>
-                    <TableCell>{adj.adjustment_date}</TableCell>
-                    <TableCell><Badge variant="outline" className="capitalize text-xs">{adj.item_type.replace("_", " ")}</Badge></TableCell>
-                    <TableCell className="font-medium">{getItemName(adj)}</TableCell>
-                    <TableCell className="capitalize">{adj.location.replace("_", " ")}</TableCell>
-                    <TableCell>{adj.old_quantity} → {adj.new_quantity}</TableCell>
-                    <TableCell className={Number(adj.adjustment_amount) >= 0 ? "text-emerald-600" : "text-destructive"}>
-                      {Number(adj.adjustment_amount) >= 0 ? "+" : ""}{adj.adjustment_amount}
-                    </TableCell>
-                    <TableCell className="capitalize text-sm">{adj.reason?.replace(/_/g, " ")}</TableCell>
-                    <TableCell>{adj.adjusted_by || "—"}</TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteTarget(adj)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+      {/* Mobile card list */}
+      <div className="mobile-card-list">
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground text-center py-8">Loading...</p>
+        ) : sorted.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">No adjustments yet</p>
+        ) : sorted.map((adj: any) => (
+          <div key={adj.id} className="mobile-card-item">
+            <div className="mobile-card-header">
+              <div>
+                <p className="mobile-card-title">{getItemName(adj)}</p>
+                <p className="text-xs text-muted-foreground">{adj.adjustment_date} · <span className="capitalize">{adj.item_type.replace("_", " ")}</span></p>
+              </div>
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-destructive" onClick={() => setDeleteTarget(adj)}>
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <p className="mobile-card-label">Old</p>
+                <p className="mobile-card-value">{adj.old_quantity}</p>
+              </div>
+              <div>
+                <p className="mobile-card-label">New</p>
+                <p className="mobile-card-value">{adj.new_quantity}</p>
+              </div>
+              <div>
+                <p className="mobile-card-label">Change</p>
+                <p className={`mobile-card-value ${Number(adj.adjustment_amount) >= 0 ? "text-emerald-600" : "text-destructive"}`}>
+                  {Number(adj.adjustment_amount) >= 0 ? "+" : ""}{adj.adjustment_amount}
+                </p>
+              </div>
+            </div>
+            <div className="mobile-card-row text-xs">
+              <span className="capitalize text-muted-foreground">{adj.reason?.replace(/_/g, " ")} · {adj.location?.replace("_", " ")}</span>
+              <span className="text-muted-foreground">{adj.adjusted_by || "—"}</span>
+            </div>
           </div>
-        </CardContent>
-      </Card>
+        ))}
+      </div>
+
+      {/* Desktop table */}
+      <div className="desktop-table">
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto scrollbar-thin">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <SortableTableHead label="Date" sortKey="adjustment_date" sort={sort} onToggle={toggleSort} />
+                    <TableHead>Type</TableHead>
+                    <TableHead>Item</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead>Old → New</TableHead>
+                    <SortableTableHead label="Change" sortKey="adjustment_amount" sort={sort} onToggle={toggleSort} />
+                    <TableHead>Reason</TableHead>
+                    <TableHead>By</TableHead>
+                    <TableHead className="w-10"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow><TableCell colSpan={9} className="text-center">Loading...</TableCell></TableRow>
+                  ) : sorted.length === 0 ? (
+                    <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">No adjustments yet</TableCell></TableRow>
+                  ) : sorted.map((adj: any) => (
+                    <TableRow key={adj.id}>
+                      <TableCell>{adj.adjustment_date}</TableCell>
+                      <TableCell><Badge variant="outline" className="capitalize text-xs">{adj.item_type.replace("_", " ")}</Badge></TableCell>
+                      <TableCell className="font-medium">{getItemName(adj)}</TableCell>
+                      <TableCell className="capitalize">{adj.location.replace("_", " ")}</TableCell>
+                      <TableCell>{adj.old_quantity} → {adj.new_quantity}</TableCell>
+                      <TableCell className={Number(adj.adjustment_amount) >= 0 ? "text-emerald-600" : "text-destructive"}>
+                        {Number(adj.adjustment_amount) >= 0 ? "+" : ""}{adj.adjustment_amount}
+                      </TableCell>
+                      <TableCell className="capitalize text-sm">{adj.reason?.replace(/_/g, " ")}</TableCell>
+                      <TableCell>{adj.adjusted_by || "—"}</TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteTarget(adj)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* New Adjustment Dialog */}
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
