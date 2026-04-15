@@ -26,6 +26,7 @@ const emptyForm = { name: "", purchase_unit: "bag", usage_unit: "mudu", current_
 
 export default function RawMaterials() {
   const [open, setOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [editing, setEditing] = useState<RawMaterial | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
