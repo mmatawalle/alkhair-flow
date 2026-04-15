@@ -265,7 +265,7 @@ export default function Products() {
           <DialogHeader><DialogTitle>Edit Product</DialogTitle></DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(form); }} className="space-y-4">
             <Input placeholder="Product Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Select value={form.bottle_size} onValueChange={(v) => setForm({ ...form, bottle_size: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
