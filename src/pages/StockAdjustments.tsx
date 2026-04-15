@@ -295,7 +295,7 @@ export default function StockAdjustments() {
           <form onSubmit={e => { e.preventDefault(); saveMutation.mutate(); }} className="space-y-3">
             <div>
               <label className="text-sm text-muted-foreground">Item Type</label>
-              <Select value={itemType} onValueChange={(v: any) => { setItemType(v); setItemId(""); }}>
+              <Select value={itemType} onValueChange={(v: any) => { setItemType(v); setItemId(""); if (v === "raw_material") setLocation("production"); else setLocation("shop"); }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="product">Product</SelectItem>
