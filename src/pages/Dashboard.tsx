@@ -175,7 +175,7 @@ export default function Dashboard() {
     <div className="page-container space-y-3 md:space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-xl font-semibold text-foreground md:text-2xl">Dashboard</h2>
+          <h2 className="text-lg font-semibold text-foreground sm:text-xl md:text-2xl">AL-KHAIR DRINKS & SNACKS DASHBOARD</h2>
           <p className="mt-0.5 max-w-[220px] text-xs text-muted-foreground sm:max-w-none sm:text-sm">
             Today&apos;s sales, stock, and daily work.
           </p>

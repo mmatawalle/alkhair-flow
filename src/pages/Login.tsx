@@ -6,6 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 
+const logoSrc = `${import.meta.env.BASE_URL}brand-logo.png`;
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Something went wrong";
+}
+
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,8 +27,8 @@ export default function Login() {
     setLoading(true);
     try {
       await signIn(email, password);
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } catch (error: unknown) {
+      toast({ title: "Error", description: getErrorMessage(error), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -38,8 +44,8 @@ export default function Login() {
       if (error) throw error;
       toast({ title: "Check your email", description: "A password reset link has been sent." });
       setShowForgot(false);
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } catch (error: unknown) {
+      toast({ title: "Error", description: getErrorMessage(error), variant: "destructive" });
     } finally {
       setForgotLoading(false);
     }
@@ -50,9 +56,11 @@ export default function Login() {
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center space-y-3 pb-2">
-            <div className="mx-auto w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center">
-              <span className="text-primary font-bold text-sm">AK</span>
-            </div>
+            <img
+              src={logoSrc}
+              alt="AL-KHAIR DRINKS & SNACKS"
+              className="mx-auto h-16 w-16 rounded-lg border border-border bg-card object-cover"
+            />
             <CardTitle className="text-lg font-semibold">Reset Password</CardTitle>
             <CardDescription>Enter your email to receive a reset link</CardDescription>
           </CardHeader>
@@ -76,10 +84,12 @@ export default function Login() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center space-y-3 pb-2">
-          <div className="mx-auto w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center">
-            <span className="text-primary font-bold text-sm">AK</span>
-          </div>
-          <CardTitle className="text-lg font-semibold">Al-Khair Drinks & Snacks</CardTitle>
+          <img
+            src={logoSrc}
+            alt="AL-KHAIR DRINKS & SNACKS"
+            className="mx-auto h-20 w-20 rounded-lg border border-border bg-card object-cover"
+          />
+          <CardTitle className="text-lg font-semibold">AL-KHAIR DRINKS & SNACKS</CardTitle>
           <CardDescription>Sign in to manage operations</CardDescription>
         </CardHeader>
         <CardContent className="pt-4">

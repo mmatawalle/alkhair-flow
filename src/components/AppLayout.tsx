@@ -35,12 +35,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <div className="flex items-center gap-3 min-w-0">
               <SidebarTrigger className="h-9 w-9 rounded-lg border border-border bg-background hover:bg-muted" />
               <div className="min-w-0">
-                <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Al-Khair</p>
+                <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground sm:text-[11px]">
+                  AL-KHAIR DRINKS & SNACKS DASHBOARD
+                </p>
                 <h1 className="truncate text-base font-semibold text-foreground">{pageTitle}</h1>
               </div>
             </div>
             <div className="hidden sm:flex items-center gap-2 rounded-lg border border-border bg-background/80 px-3 py-2 text-xs text-muted-foreground">
-              Drinks and snacks operations
+              AL-KHAIR DRINKS & SNACKS
             </div>
           </header>
           <main className="flex-1 overflow-auto p-3 md:p-6 lg:p-8 scrollbar-thin">

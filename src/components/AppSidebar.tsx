@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 
+const logoSrc = `${import.meta.env.BASE_URL}brand-logo.png`;
+
 const sections = [
   {
     label: "Overview",
@@ -72,18 +74,22 @@ export function AppSidebar() {
       <SidebarHeader className="px-3 py-4">
         {!collapsed ? (
           <div className="flex items-center gap-3 rounded-lg border border-sidebar-border bg-sidebar-accent/70 p-2">
-            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground shadow-sm">
-              <span className="text-sm font-bold">AK</span>
-            </div>
+            <img
+              src={logoSrc}
+              alt="AL-KHAIR DRINKS & SNACKS"
+              className="h-10 w-10 flex-shrink-0 rounded-lg border border-sidebar-border bg-card object-cover shadow-sm"
+            />
             <div className="min-w-0">
-              <span className="block truncate text-sm font-semibold text-sidebar-foreground">Al-Khair</span>
-              <span className="block truncate text-xs text-sidebar-foreground/55">Operations</span>
+              <span className="block truncate text-sm font-semibold text-sidebar-foreground">AL-KHAIR DRINKS & SNACKS</span>
+              <span className="block truncate text-xs text-sidebar-foreground/55">Operations dashboard</span>
             </div>
           </div>
         ) : (
-          <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-            <span className="text-sm font-bold">A</span>
-          </div>
+          <img
+            src={logoSrc}
+            alt="AL-KHAIR DRINKS & SNACKS"
+            className="mx-auto h-10 w-10 rounded-lg border border-sidebar-border bg-card object-cover"
+          />
         )}
       </SidebarHeader>
 
