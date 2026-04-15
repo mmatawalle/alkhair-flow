@@ -13,6 +13,7 @@ import { useSortableTable } from "@/hooks/use-sortable-table";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import { logAudit } from "@/lib/audit";
+import BulkRawMaterialForm from "@/components/BulkRawMaterialForm";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -25,6 +26,7 @@ const emptyForm = { name: "", purchase_unit: "bag", usage_unit: "mudu", current_
 
 export default function RawMaterials() {
   const [open, setOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [editing, setEditing] = useState<RawMaterial | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -117,7 +119,10 @@ export default function RawMaterials() {
     <div className="page-container">
       <div className="page-header">
         <h2 className="page-title">Raw Materials</h2>
-        <Button onClick={() => { setEditing(null); setForm(emptyForm); setOpen(true); }} className="w-full sm:w-auto"><Plus className="mr-2 h-4 w-4" />Add Material</Button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button variant="outline" onClick={() => setBulkOpen(true)} className="flex-1 sm:flex-none"><Plus className="mr-2 h-4 w-4" />Add Multiple</Button>
+          <Button onClick={() => { setEditing(null); setForm(emptyForm); setOpen(true); }} className="flex-1 sm:flex-none"><Plus className="mr-2 h-4 w-4" />Add Material</Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -269,6 +274,8 @@ export default function RawMaterials() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <BulkRawMaterialForm open={bulkOpen} onOpenChange={setBulkOpen} />
     </div>
   );
 }
