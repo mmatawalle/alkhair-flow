@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Ban, Pencil, Receipt, Download, Search } from "lucide-react";
+import { Plus, Ban, Pencil, Receipt, Download, Trash2 } from "lucide-react";
 import { fmt } from "@/lib/stock-helpers";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { useSortableTable } from "@/hooks/use-sortable-table";
@@ -23,10 +23,28 @@ import {
 import { SaleReceipt } from "@/components/SaleReceipt";
 import { downloadCSV } from "@/lib/csv-export";
 
+interface SaleItem {
+  key: number;
+  product_id: string;
+  quantity_sold: number;
+  selling_price_per_unit: number;
+  note: string;
+}
+
+const emptySaleItem = (key: number): SaleItem => ({
+  key,
+  product_id: "",
+  quantity_sold: 0,
+  selling_price_per_unit: 0,
+  note: "",
+});
+
 export default function Sales() {
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [nextSaleKey, setNextSaleKey] = useState(2);
+  const [saleItems, setSaleItems] = useState<SaleItem[]>([emptySaleItem(1)]);
   const [productId, setProductId] = useState("");
   const [qtySold, setQtySold] = useState(0);
   const [sellingPrice, setSellingPrice] = useState(0);
@@ -43,7 +61,10 @@ export default function Sales() {
   const qc = useQueryClient();
 
   useEffect(() => {
-    if ((location.state as any)?.openDialog) setOpen(true);
+    if ((location.state as any)?.openDialog) {
+      resetForm();
+      setOpen(true);
+    }
   }, [location.state]);
 
   const { data: products } = useQuery({
@@ -77,7 +98,34 @@ export default function Sales() {
     setEditingId(null); setProductId(""); setQtySold(0); setSellingPrice(0);
     setSaleType("cash"); setSaleSource("shop"); setNote("");
     setSaleDate(new Date().toISOString().split("T")[0]);
+    setSaleItems([emptySaleItem(1)]);
+    setNextSaleKey(2);
   };
+
+  const addSaleRow = () => {
+    setSaleItems(prev => [...prev, emptySaleItem(nextSaleKey)]);
+    setNextSaleKey(k => k + 1);
+  };
+
+  const removeSaleRow = (key: number) => {
+    setSaleItems(prev => prev.filter(item => item.key !== key));
+  };
+
+  const updateSaleRow = (key: number, field: keyof SaleItem, value: string | number) => {
+    setSaleItems(prev => prev.map(item => {
+      if (item.key !== key) return item;
+      const next = { ...item, [field]: value };
+      if (field === "product_id") {
+        const product = products?.find(p => p.id === value);
+        next.selling_price_per_unit = Number(product?.selling_price || 0);
+      }
+      return next;
+    }));
+  };
+
+  const getRowProduct = (id: string) => products?.find(p => p.id === id);
+  const validSaleItems = saleItems.filter(item => item.product_id && item.quantity_sold > 0 && item.selling_price_per_unit >= 0);
+  const batchTotalRevenue = validSaleItems.reduce((sum, item) => sum + item.quantity_sold * item.selling_price_per_unit, 0);
 
   const openEdit = (s: any) => {
     setEditingId(s.id);
@@ -153,6 +201,84 @@ export default function Sales() {
       qc.invalidateQueries({ queryKey: ["products"] });
       setOpen(false); resetForm();
       toast({ title: editingId ? "Sale updated ✓" : "Sale recorded ✓" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const batchSaleMutation = useMutation({
+    mutationFn: async () => {
+      const valid = validSaleItems;
+      if (!valid.length) throw new Error("Add at least one sale item");
+
+      const stockNeeded = new Map<string, number>();
+      for (const item of valid) {
+        const product = getRowProduct(item.product_id);
+        if (!product) throw new Error("Select a product for every sale row");
+        const stockKey = `${item.product_id}:${saleSource}`;
+        stockNeeded.set(stockKey, (stockNeeded.get(stockKey) || 0) + Number(item.quantity_sold));
+      }
+
+      for (const [stockKey, qtyNeeded] of stockNeeded.entries()) {
+        const [pid, source] = stockKey.split(":");
+        const product = getRowProduct(pid);
+        if (!product) throw new Error("Product not found");
+        const available = source === "online_shop" ? Number(product.online_shop_stock) : Number(product.shop_stock);
+        if (qtyNeeded > available) {
+          throw new Error(`Not enough stock for ${product.name}. Available: ${available}, needed: ${qtyNeeded}`);
+        }
+      }
+
+      const payload = valid.map(item => {
+        const product = getRowProduct(item.product_id);
+        const cost = Number(product?.average_cost_per_unit || 0);
+        const revenue = Number(item.quantity_sold) * Number(item.selling_price_per_unit);
+        const cogs = Number(item.quantity_sold) * cost;
+
+        return {
+          product_id: item.product_id,
+          quantity_sold: item.quantity_sold,
+          selling_price_per_unit: item.selling_price_per_unit,
+          total_revenue: revenue,
+          cost_per_unit: cost,
+          total_cogs: cogs,
+          profit: revenue - cogs,
+          sale_type: saleType,
+          sale_source: saleSource,
+          sale_date: saleDate,
+          note: item.note || note || null,
+        };
+      });
+
+      const { data, error } = await supabase.from("sale_records").insert(payload).select("id, product_id, quantity_sold, total_revenue");
+      if (error) throw error;
+
+      for (const [stockKey, qtySoldTotal] of stockNeeded.entries()) {
+        const [pid, source] = stockKey.split(":");
+        const product = getRowProduct(pid);
+        if (!product) throw new Error("Product not found");
+        const updateData = source === "online_shop"
+          ? { online_shop_stock: Number(product.online_shop_stock) - qtySoldTotal }
+          : { shop_stock: Number(product.shop_stock) - qtySoldTotal };
+        const { error: updateError } = await supabase.from("products").update(updateData).eq("id", pid);
+        if (updateError) throw updateError;
+      }
+
+      for (const row of data || []) {
+        await logAudit({
+          action_type: "create",
+          module: "sales",
+          record_id: row.id,
+          new_values: { product_id: row.product_id, quantity_sold: row.quantity_sold, total_revenue: row.total_revenue },
+        });
+      }
+    },
+    onSuccess: () => {
+      const count = validSaleItems.length;
+      qc.invalidateQueries({ queryKey: ["sale_records"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+      setOpen(false);
+      resetForm();
+      toast({ title: `${count} sale(s) recorded ✓` });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -321,8 +447,9 @@ export default function Sales() {
       </div>
 
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
-        <DialogContent>
+        <DialogContent className={editingId ? "" : "max-w-4xl max-h-[90vh] overflow-y-auto"}>
           <DialogHeader><DialogTitle>{editingId ? "Edit Sale" : "Add Sale"}</DialogTitle></DialogHeader>
+          {editingId ? (
           <form onSubmit={(e) => { e.preventDefault(); saleMutation.mutate(); }} className="space-y-3">
             <Select value={productId} onValueChange={(v) => {
               setProductId(v);
@@ -396,6 +523,114 @@ export default function Sales() {
               <Button type="submit" disabled={saleMutation.isPending}>{saleMutation.isPending ? "Saving..." : editingId ? "Update Sale" : "Add Sale"}</Button>
             </DialogFooter>
           </form>
+          ) : (
+          <form onSubmit={(e) => { e.preventDefault(); batchSaleMutation.mutate(); }} className="space-y-4">
+            <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-3">
+              <p className="text-sm font-medium text-muted-foreground">Apply to all sale rows</p>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div>
+                  <label className="text-xs text-muted-foreground">Sell from</label>
+                  <Select value={saleSource} onValueChange={setSaleSource}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="shop">Shop</SelectItem>
+                      <SelectItem value="online_shop">Online Shop</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Payment type</label>
+                  <Select value={saleType} onValueChange={setSaleType}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="transfer">Transfer</SelectItem>
+                      <SelectItem value="pos">POS</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Sale date</label>
+                  <Input className="h-9" type="date" value={saleDate} onChange={(e) => setSaleDate(e.target.value)} />
+                </div>
+              </div>
+              <Input className="h-9" placeholder="General note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+            </div>
+
+            <div className="space-y-2">
+              {saleItems.map((item, idx) => {
+                const rowProduct = getRowProduct(item.product_id);
+                const rowStock = rowProduct
+                  ? (saleSource === "online_shop" ? Number(rowProduct.online_shop_stock) : Number(rowProduct.shop_stock))
+                  : 0;
+                const rowRevenue = Number(item.quantity_sold) * Number(item.selling_price_per_unit);
+
+                return (
+                  <div key={item.key} className="grid grid-cols-[1fr_auto] gap-2 rounded-lg border border-border p-2">
+                    <div className="space-y-2">
+                      <div className="grid gap-2 md:grid-cols-[1.4fr_0.7fr_0.8fr]">
+                        <Select value={item.product_id} onValueChange={v => updateSaleRow(item.key, "product_id", v)}>
+                          <SelectTrigger className="h-9 text-xs md:text-sm"><SelectValue placeholder={`Product ${idx + 1}`} /></SelectTrigger>
+                          <SelectContent>
+                            {products?.map(p => <SelectItem key={p.id} value={p.id}>{p.name} ({p.bottle_size})</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          type="number"
+                          min={1}
+                          className="h-9 text-xs md:text-sm"
+                          placeholder="Qty"
+                          value={item.quantity_sold || ""}
+                          onChange={e => updateSaleRow(item.key, "quantity_sold", Number(e.target.value))}
+                        />
+                        <Input
+                          type="number"
+                          step="any"
+                          min={0}
+                          className="h-9 text-xs md:text-sm"
+                          placeholder="Price (₦)"
+                          value={item.selling_price_per_unit || ""}
+                          onChange={e => updateSaleRow(item.key, "selling_price_per_unit", Number(e.target.value))}
+                        />
+                      </div>
+                      <div className="grid gap-2 md:grid-cols-[1fr_auto] md:items-center">
+                        <Input
+                          className="h-9 text-xs md:text-sm"
+                          placeholder="Row note (optional)"
+                          value={item.note}
+                          onChange={e => updateSaleRow(item.key, "note", e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground md:text-right">
+                          {rowProduct ? `Available: ${rowStock} · Total: ${fmt(rowRevenue)}` : "Choose a product"}
+                        </p>
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive" onClick={() => removeSaleRow(item.key)} disabled={saleItems.length === 1}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <Button type="button" variant="outline" size="sm" onClick={addSaleRow} className="w-fit">
+                <Plus className="mr-1 h-3 w-3" /> Add Row
+              </Button>
+              <div className="rounded-lg bg-muted/60 px-3 py-2 text-sm">
+                <span className="text-muted-foreground">Total revenue: </span>
+                <strong>{fmt(batchTotalRevenue)}</strong>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => { setOpen(false); resetForm(); }}>Cancel</Button>
+              <Button type="submit" disabled={batchSaleMutation.isPending || validSaleItems.length === 0}>
+                {batchSaleMutation.isPending ? "Saving..." : `Save All (${validSaleItems.length})`}
+              </Button>
+            </DialogFooter>
+          </form>
+          )}
         </DialogContent>
       </Dialog>
 
