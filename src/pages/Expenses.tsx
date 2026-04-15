@@ -46,7 +46,8 @@ export default function Expenses() {
   const [receiptExpense, setReceiptExpense] = useState<any>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
-  const { isSuperAdmin, userFullName } = useAuth();
+  const { isStaff, userFullName } = useAuth();
+  const canManage = !isStaff;
 
   useEffect(() => {
     if ((location.state as any)?.openDialog) {
@@ -68,14 +69,14 @@ export default function Expenses() {
     setEditingId(null);
     setForm({
       ...emptyForm,
-      expense_side: isSuperAdmin ? "shop" : "shop",
-      payment_nature: isSuperAdmin ? "normal" : "normal",
+      expense_side: "shop",
+      payment_nature: "normal",
       requested_by: userFullName || "",
     });
   };
 
   const openEdit = (e: any) => {
-    if (!isSuperAdmin) return;
+    if (!canManage) return;
     setEditingId(e.id);
     setForm({
       expense_side: e.expense_side, category_code: e.category_code, amount: e.amount,
@@ -91,14 +92,14 @@ export default function Expenses() {
       if (form.amount <= 0) throw new Error("Amount must be > 0");
       const payload = {
         ...form,
-        expense_side: isSuperAdmin ? form.expense_side : "shop",
-        payment_nature: isSuperAdmin ? form.payment_nature : "normal",
+        expense_side: canManage ? form.expense_side : "shop",
+        payment_nature: canManage ? form.payment_nature : "normal",
         requested_by: form.requested_by || userFullName || null,
         linked_item: form.linked_item || null,
         description: form.description || null,
       };
       if (editingId) {
-        if (!isSuperAdmin) throw new Error("You do not have permission to edit expenses");
+        if (!canManage) throw new Error("You do not have permission to edit expenses");
         const { error } = await supabase.from("expense_records").update(payload).eq("id", editingId);
         if (error) throw error;
       } else {
@@ -116,7 +117,7 @@ export default function Expenses() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      if (!isSuperAdmin) throw new Error("You do not have permission to delete expenses");
+      if (!canManage) throw new Error("You do not have permission to delete expenses");
       const { error } = await supabase.from("expense_records").delete().eq("id", id);
       if (error) throw error;
     },
@@ -128,7 +129,7 @@ export default function Expenses() {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  let filtered = isSuperAdmin
+  let filtered = canManage
     ? (filterSide === "all" ? expenses : expenses?.filter(e => e.expense_side === filterSide))
     : expenses?.filter(e => e.expense_side === "shop");
   if (dateFrom) filtered = filtered?.filter(e => e.expense_date >= dateFrom);
@@ -141,7 +142,7 @@ export default function Expenses() {
       <div className="page-header">
         <h2 className="page-title">Expenses</h2>
         <div className="flex gap-2 w-full sm:w-auto">
-          {isSuperAdmin && (
+          {canManage && (
             <Button variant="outline" className="flex-1 sm:flex-none" onClick={() => {
               if (!filtered?.length) return;
               downloadCSV("expenses.csv",
@@ -155,7 +156,7 @@ export default function Expenses() {
       </div>
 
       <div className="filter-bar">
-        {isSuperAdmin ? (
+        {canManage ? (
           <div className="flex gap-2 flex-wrap">
             {["all", "shop", "production"].map(s => (
               <Button key={s} variant={filterSide === s ? "default" : "outline"} size="sm" onClick={() => setFilterSide(s)} className="capitalize">
@@ -190,7 +191,7 @@ export default function Expenses() {
               <Button variant="ghost" size="sm" className="h-8" onClick={() => setReceiptExpense(e)}>
                 <Eye className="h-3.5 w-3.5 mr-1" /> View
               </Button>
-              {isSuperAdmin && (
+              {canManage && (
                 <>
                   <Button variant="ghost" size="sm" className="h-8" onClick={() => openEdit(e)}>
                     <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
@@ -236,7 +237,7 @@ export default function Expenses() {
                       <TableCell>
                         <div className="flex gap-1">
                           <Button variant="ghost" size="icon" title="View Receipt" onClick={() => setReceiptExpense(e)}><Eye className="h-4 w-4" /></Button>
-                          {isSuperAdmin && (
+                          {canManage && (
                             <>
                               <Button variant="ghost" size="icon" onClick={() => openEdit(e)}><Pencil className="h-4 w-4" /></Button>
                               <Button variant="ghost" size="icon" onClick={() => setDeleteId(e.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
@@ -258,7 +259,7 @@ export default function Expenses() {
           <DialogHeader><DialogTitle>{editingId ? "Edit Expense" : "Add Expense"}</DialogTitle></DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {isSuperAdmin ? (
+              {canManage ? (
                 <div>
                   <label className="text-sm text-muted-foreground">Side</label>
                   <Select value={form.expense_side} onValueChange={(v) => setForm({ ...form, expense_side: v })}>
@@ -291,13 +292,13 @@ export default function Expenses() {
             </div>
             <Input type="date" value={form.expense_date} onChange={(e) => setForm({ ...form, expense_date: e.target.value })} />
             <Input placeholder="What was it for?" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-            {isSuperAdmin ? (
+            {canManage ? (
               <Input placeholder="Who asked? (optional)" value={form.requested_by} onChange={(e) => setForm({ ...form, requested_by: e.target.value })} />
             ) : (
               <Input placeholder="Recorded by" value={form.requested_by || userFullName} onChange={(e) => setForm({ ...form, requested_by: e.target.value })} />
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {isSuperAdmin ? (
+              {canManage ? (
                 <div>
                   <label className="text-sm text-muted-foreground">Payment type</label>
                   <Select value={form.payment_nature} onValueChange={(v) => setForm({ ...form, payment_nature: v })}>

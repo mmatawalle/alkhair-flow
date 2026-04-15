@@ -28,7 +28,7 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 function ProtectedRoutes() {
-  const { user, loading, isSuperAdmin } = useAuth();
+  const { user, loading, isStaff } = useAuth();
   const staffRoutes = (
     <>
       <Route path="/" element={<Dashboard />} />
@@ -51,7 +51,7 @@ function ProtectedRoutes() {
   return (
     <AppLayout>
       <Routes>
-        {isSuperAdmin ? (
+        {!isStaff ? (
           <>
             <Route path="/" element={<Dashboard />} />
             <Route path="/raw-materials" element={<RawMaterials />} />

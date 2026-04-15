@@ -32,10 +32,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         supabase.rpc("has_role", { _user_id: userId, _role: "staff" }),
       ]);
       setIsSuperAdmin(!!superAdmin);
-      setIsStaff(!!staff || !superAdmin);
+      setIsStaff(!!staff && !superAdmin);
     } catch {
       setIsSuperAdmin(false);
-      setIsStaff(true);
+      setIsStaff(false);
     }
   };
 
@@ -93,6 +93,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+    setSession(null);
+    setUser(null);
+    setIsSuperAdmin(false);
+    setIsStaff(false);
+    setUserFullName("");
+    window.location.assign(`${import.meta.env.BASE_URL}login`);
   };
 
   return (

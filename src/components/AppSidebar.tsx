@@ -80,9 +80,9 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
-  const { signOut, isSuperAdmin, userFullName } = useAuth();
-  const visibleSections = isSuperAdmin ? sections : staffSections;
-  const visibleNavItems = isSuperAdmin ? navItems : staffItems;
+  const { signOut, isStaff, userFullName } = useAuth();
+  const visibleSections = isStaff ? staffSections : sections;
+  const visibleNavItems = isStaff ? staffItems : navItems;
   const isActive = (url: string) => url === "/" ? location.pathname === "/" : location.pathname.startsWith(url);
 
   if (collapsed) {
@@ -112,7 +112,7 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
-            {isSuperAdmin && (
+            {!isStaff && (
               <SidebarMenuItem>
                 <SidebarMenuButton
                   asChild
@@ -180,7 +180,7 @@ export function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         ))}
-        {isSuperAdmin && (
+        {!isStaff && (
           <SidebarGroup className="py-1">
             <SidebarGroupLabel>Super Admin</SidebarGroupLabel>
             <SidebarGroupContent>

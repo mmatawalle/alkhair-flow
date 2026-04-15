@@ -60,7 +60,8 @@ export default function Sales() {
   const [receiptSale, setReceiptSale] = useState<any>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
-  const { isSuperAdmin } = useAuth();
+  const { isStaff } = useAuth();
+  const canManage = !isStaff;
 
   useEffect(() => {
     if ((location.state as any)?.openDialog) {
@@ -325,7 +326,7 @@ export default function Sales() {
           <h2 className="page-title">Sales</h2>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
-          {isSuperAdmin && (
+          {canManage && (
             <Button variant="outline" className="flex-1 sm:flex-none" onClick={() => {
               if (!filtered?.length) return;
               downloadCSV("sales.csv",
@@ -377,7 +378,7 @@ export default function Sales() {
               <Button variant="ghost" size="sm" className="h-8" onClick={() => setReceiptSale(s)}>
                 <Receipt className="h-3.5 w-3.5 mr-1" /> Receipt
               </Button>
-              {isSuperAdmin && !s.voided && (
+              {canManage && !s.voided && (
                 <>
                   <Button variant="ghost" size="sm" className="h-8" onClick={() => openEdit(s)}>
                     <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
@@ -429,7 +430,7 @@ export default function Sales() {
                           <Button variant="ghost" size="icon" title="Receipt" onClick={() => setReceiptSale(s)}>
                             <Receipt className="h-4 w-4" />
                           </Button>
-                          {isSuperAdmin && !s.voided && (
+                          {canManage && !s.voided && (
                             <>
                               <Button variant="ghost" size="icon" title="Edit" onClick={() => openEdit(s)}>
                                 <Pencil className="h-4 w-4" />
