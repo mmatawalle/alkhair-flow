@@ -63,34 +63,83 @@ const sections = [
   },
 ];
 
+const navItems = sections.flatMap(section => section.items);
+
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
   const { signOut, isSuperAdmin, userFullName } = useAuth();
+  const isActive = (url: string) => url === "/" ? location.pathname === "/" : location.pathname.startsWith(url);
+
+  if (collapsed) {
+    return (
+      <Sidebar collapsible="icon">
+        <SidebarHeader className="px-2 py-3">
+          <img
+            src={logoSrc}
+            alt="AL-KHAIR DRINKS & SNACKS"
+            className="mx-auto h-8 w-8 rounded-md border border-sidebar-border bg-card object-cover"
+          />
+        </SidebarHeader>
+
+        <SidebarContent className="px-2 py-1">
+          <SidebarMenu className="gap-1.5">
+            {navItems.map((item) => (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton
+                  asChild
+                  tooltip={item.title}
+                  isActive={isActive(item.url)}
+                  className="mx-auto h-8 w-8 rounded-lg p-0 text-sidebar-foreground/70 data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                >
+                  <NavLink to={item.url} end={item.url === "/"} aria-label={item.title}>
+                    <item.icon className="h-4 w-4" />
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+            {isSuperAdmin && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  tooltip="Users"
+                  isActive={location.pathname === "/users"}
+                  className="mx-auto h-8 w-8 rounded-lg p-0 text-sidebar-foreground/70 data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                >
+                  <NavLink to="/users" aria-label="Users">
+                    <Users className="h-4 w-4" />
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
+          </SidebarMenu>
+        </SidebarContent>
+
+        <SidebarFooter className="px-2 pb-3">
+          <Button variant="ghost" size="icon" onClick={signOut} className="mx-auto h-8 w-8 text-sidebar-foreground/65 hover:text-sidebar-foreground hover:bg-sidebar-accent">
+            <LogOut className="h-4 w-4" />
+            <span className="sr-only">Sign Out</span>
+          </Button>
+        </SidebarFooter>
+      </Sidebar>
+    );
+  }
 
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="px-3 py-4">
-        {!collapsed ? (
-          <div className="flex items-center gap-3 rounded-lg border border-sidebar-border bg-sidebar-accent/70 p-2">
-            <img
-              src={logoSrc}
-              alt="AL-KHAIR DRINKS & SNACKS"
-              className="h-10 w-10 flex-shrink-0 rounded-lg border border-sidebar-border bg-card object-cover shadow-sm"
-            />
-            <div className="min-w-0">
-              <span className="block truncate text-sm font-semibold text-sidebar-foreground">AL-KHAIR DRINKS & SNACKS</span>
-              <span className="block truncate text-xs text-sidebar-foreground/55">Operations dashboard</span>
-            </div>
-          </div>
-        ) : (
+        <div className="flex items-center gap-3 rounded-lg border border-sidebar-border bg-sidebar-accent/70 p-2">
           <img
             src={logoSrc}
             alt="AL-KHAIR DRINKS & SNACKS"
-            className="mx-auto h-10 w-10 rounded-lg border border-sidebar-border bg-card object-cover"
+            className="h-10 w-10 flex-shrink-0 rounded-lg border border-sidebar-border bg-card object-cover shadow-sm"
           />
-        )}
+          <div className="min-w-0">
+            <span className="block truncate text-sm font-semibold text-sidebar-foreground">AL-KHAIR DRINKS & SNACKS</span>
+            <span className="block truncate text-xs text-sidebar-foreground/55">Operations dashboard</span>
+          </div>
+        </div>
       </SidebarHeader>
 
       <SidebarContent className="px-2 pb-2 pt-1">
