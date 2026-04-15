@@ -247,52 +247,90 @@ export default function Production() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-foreground">Production</h2>
-        <Button onClick={() => { resetForm(); setOpen(true); }}><Plus className="mr-2 h-4 w-4" />New Batch</Button>
+    <div className="page-container">
+      <div className="page-header">
+        <h2 className="page-title">Production</h2>
+        <Button onClick={() => { resetForm(); setOpen(true); }} className="w-full sm:w-auto"><Plus className="mr-2 h-4 w-4" />New Batch</Button>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="hidden md:table-cell">Batch</TableHead>
-                  <TableHead>Products</TableHead>
-                  <TableHead>Qty</TableHead>
-                  <TableHead>Cost</TableHead>
-                  <TableHead className="hidden md:table-cell">Cost/Unit</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow><TableCell colSpan={7} className="text-center">Loading...</TableCell></TableRow>
-                ) : batches?.map((b: any) => (
-                  <TableRow key={b.id} className={b.voided ? "opacity-40 line-through" : ""}>
-                    <TableCell className="whitespace-nowrap">{b.production_date}</TableCell>
-                    <TableCell className="hidden md:table-cell font-mono text-xs">{b.batch_code}</TableCell>
-                    <TableCell className="font-medium max-w-[200px] truncate" title={getBatchProductsLabel(b)}>{getBatchProductsLabel(b)}</TableCell>
-                    <TableCell>{b.quantity_produced}</TableCell>
-                    <TableCell>{fmt(b.total_batch_cost)}</TableCell>
-                    <TableCell className="hidden md:table-cell">{b.voided ? "VOIDED" : fmt(b.cost_per_unit)}</TableCell>
-                    <TableCell>
-                      {!b.voided && (
-                        <Button variant="ghost" size="icon" title="Void batch" onClick={() => setVoidId(b.id)}>
-                          <Ban className="h-4 w-4 text-destructive" />
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+      {/* Mobile card list */}
+      <div className="mobile-card-list">
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground text-center py-8">Loading...</p>
+        ) : batches?.map((b: any) => (
+          <div key={b.id} className={`mobile-card-item ${b.voided ? "opacity-40" : ""}`}>
+            <div className="mobile-card-header">
+              <div className="min-w-0 flex-1">
+                <p className="mobile-card-title truncate">{getBatchProductsLabel(b)}</p>
+                <p className="text-xs text-muted-foreground">{b.production_date} · {b.batch_code}</p>
+              </div>
+              {!b.voided && (
+                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setVoidId(b.id)}>
+                  <Ban className="h-3.5 w-3.5 text-destructive" />
+                </Button>
+              )}
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <p className="mobile-card-label">Qty</p>
+                <p className="mobile-card-value">{b.quantity_produced}</p>
+              </div>
+              <div>
+                <p className="mobile-card-label">Total Cost</p>
+                <p className="mobile-card-value">{fmt(b.total_batch_cost)}</p>
+              </div>
+              <div>
+                <p className="mobile-card-label">Cost/Unit</p>
+                <p className="mobile-card-value">{b.voided ? "VOIDED" : fmt(b.cost_per_unit)}</p>
+              </div>
+            </div>
           </div>
-        </CardContent>
-      </Card>
+        ))}
+      </div>
+
+      {/* Desktop table */}
+      <div className="desktop-table">
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto scrollbar-thin">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Batch</TableHead>
+                    <TableHead>Products</TableHead>
+                    <TableHead>Qty</TableHead>
+                    <TableHead>Cost</TableHead>
+                    <TableHead>Cost/Unit</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow><TableCell colSpan={7} className="text-center">Loading...</TableCell></TableRow>
+                  ) : batches?.map((b: any) => (
+                    <TableRow key={b.id} className={b.voided ? "opacity-40 line-through" : ""}>
+                      <TableCell className="whitespace-nowrap">{b.production_date}</TableCell>
+                      <TableCell className="font-mono text-xs">{b.batch_code}</TableCell>
+                      <TableCell className="font-medium max-w-[200px] truncate" title={getBatchProductsLabel(b)}>{getBatchProductsLabel(b)}</TableCell>
+                      <TableCell>{b.quantity_produced}</TableCell>
+                      <TableCell>{fmt(b.total_batch_cost)}</TableCell>
+                      <TableCell>{b.voided ? "VOIDED" : fmt(b.cost_per_unit)}</TableCell>
+                      <TableCell>
+                        {!b.voided && (
+                          <Button variant="ghost" size="icon" title="Void batch" onClick={() => setVoidId(b.id)}>
+                            <Ban className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
