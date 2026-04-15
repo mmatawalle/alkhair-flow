@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,10 +8,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { AlertTriangle, ArrowRightLeft, DollarSign, Gift, Plus, Receipt, Repeat, TrendingUp, Truck } from "lucide-react";
 import { StockBadge, getProductStockLevel, getStockLevel, fmt } from "@/lib/stock-helpers";
 import type { Database } from "@/integrations/supabase/types";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { useAuth } from "@/contexts/AuthContext";
 
 const today = new Date().toISOString().split("T")[0];
+const SalesBarChart = lazy(() => import("@/components/dashboard/SalesBarChart").then(module => ({ default: module.SalesBarChart })));
 
 type Product = Database["public"]["Tables"]["products"]["Row"];
 type RawMaterial = Database["public"]["Tables"]["raw_materials"]["Row"];
@@ -46,6 +46,7 @@ export default function Dashboard() {
 
   const { data: rawMaterials } = useQuery({
     queryKey: ["raw_materials"],
+    enabled: canManage,
     queryFn: async () => {
       const { data, error } = await supabase.from("raw_materials").select("*").order("name");
       if (error) throw error;
@@ -69,6 +70,7 @@ export default function Dashboard() {
 
   const { data: todayTransfers } = useQuery({
     queryKey: ["transfer_records", "today"],
+    enabled: canManage,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("transfer_records")
@@ -82,6 +84,7 @@ export default function Dashboard() {
 
   const { data: pendingTransactions } = useQuery({
     queryKey: ["internal_transactions", "pending"],
+    enabled: canManage,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("internal_transactions")
@@ -117,7 +120,9 @@ export default function Dashboard() {
     const minStock = Math.min(Number(p.shop_stock), Number(p.online_shop_stock));
     return getProductStockLevel(minStock) !== "available";
   }) ?? [];
-  const lowMaterials = rawMaterials?.filter(m => getStockLevel(Number(m.current_stock), Number(m.reorder_level)) !== "available") ?? [];
+  const lowMaterials = canManage
+    ? rawMaterials?.filter(m => getStockLevel(Number(m.current_stock), Number(m.reorder_level)) !== "available") ?? []
+    : [];
   const alertCount = lowProducts.length + lowMaterials.length;
 
   const weekChartData = (() => {
@@ -278,32 +283,9 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent className="grid gap-3 p-3 md:grid-cols-[1fr_180px] md:gap-4 md:p-5">
             <div className="h-48 md:h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={weekChartData} barCategoryGap="22%">
-                  <XAxis dataKey="date" tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
-                  <YAxis
-                    tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-                    tickFormatter={v => `${Math.round(Number(v) / 1000)}k`}
-                    axisLine={false}
-                    tickLine={false}
-                    width={44}
-                  />
-                  <Tooltip
-                    formatter={(v: number) => fmt(v)}
-                    cursor={{ fill: "hsl(var(--muted) / 0.7)" }}
-                    contentStyle={{
-                      borderRadius: "8px",
-                      border: "1px solid hsl(var(--border))",
-                      boxShadow: "0 12px 28px hsl(30 18% 12% / 0.12)",
-                    }}
-                  />
-                  <Bar dataKey="revenue" radius={[6, 6, 0, 0]}>
-                    {weekChartData.map((_, i) => (
-                      <Cell key={i} fill={i === weekChartData.length - 1 ? "hsl(var(--primary))" : "hsl(var(--primary) / 0.28)"} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              <Suspense fallback={<div className="h-full rounded-lg bg-muted/30" />}>
+                <SalesBarChart data={weekChartData} />
+              </Suspense>
             </div>
             <div className="grid grid-cols-3 gap-2 md:grid-cols-1 md:gap-3">
               <MiniStat label="Revenue" value={fmt(todayRevenue)} />
