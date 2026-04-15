@@ -64,13 +64,12 @@ const sections = [
 ];
 
 const navItems = sections.flatMap(section => section.items);
+
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
-  const { signOut, userFullName } = useAuth();
-  const visibleSections = sections;
-  const visibleNavItems = navItems;
+  const { signOut, isSuperAdmin, userFullName } = useAuth();
   const isActive = (url: string) => url === "/" ? location.pathname === "/" : location.pathname.startsWith(url);
 
   if (collapsed) {
@@ -86,7 +85,7 @@ export function AppSidebar() {
 
         <SidebarContent className="px-2 py-1">
           <SidebarMenu className="gap-1.5">
-            {visibleNavItems.map((item) => (
+            {navItems.map((item) => (
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton
                   asChild
@@ -100,18 +99,20 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                tooltip="Users"
-                isActive={location.pathname === "/users"}
-                className="mx-auto h-8 w-8 rounded-lg p-0 text-sidebar-foreground/70 data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              >
-                <NavLink to="/users" aria-label="Users">
-                  <Users className="h-4 w-4" />
-                </NavLink>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {isSuperAdmin && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  tooltip="Users"
+                  isActive={location.pathname === "/users"}
+                  className="mx-auto h-8 w-8 rounded-lg p-0 text-sidebar-foreground/70 data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                >
+                  <NavLink to="/users" aria-label="Users">
+                    <Users className="h-4 w-4" />
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
           </SidebarMenu>
         </SidebarContent>
 
@@ -142,7 +143,7 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="px-2 pb-2 pt-1">
-        {visibleSections.map((section) => (
+        {sections.map((section) => (
           <SidebarGroup key={section.label} className="py-1">
             <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -166,26 +167,28 @@ export function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         ))}
-        <SidebarGroup className="py-1">
-          <SidebarGroupLabel>Super Admin</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  tooltip="Users"
-                  isActive={location.pathname === "/users"}
-                  className="h-9 rounded-lg text-sidebar-foreground/70 data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                >
-                  <NavLink to="/users">
-                    <Users className="mr-2 h-4 w-4" />
-                    {!collapsed && <span>Users</span>}
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {isSuperAdmin && (
+          <SidebarGroup className="py-1">
+            <SidebarGroupLabel>Super Admin</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    tooltip="Users"
+                    isActive={location.pathname === "/users"}
+                    className="h-9 rounded-lg text-sidebar-foreground/70 data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  >
+                    <NavLink to="/users">
+                      <Users className="mr-2 h-4 w-4" />
+                      {!collapsed && <span>Users</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter className="pb-4 px-2">

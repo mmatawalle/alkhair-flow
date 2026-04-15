@@ -2,9 +2,6 @@ import { ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
-import { Button } from "@/components/ui/button";
-import { useAuth } from "@/contexts/AuthContext";
-import { LogOut } from "lucide-react";
 
 const pageTitles: Record<string, string> = {
   "/": "Dashboard",
@@ -27,7 +24,6 @@ const pageTitles: Record<string, string> = {
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
-  const { signOut } = useAuth();
   const pageTitle = pageTitles[location.pathname] ?? "Workspace";
 
   return (
@@ -45,21 +41,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 <h1 className="truncate text-base font-semibold text-foreground">{pageTitle}</h1>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="hidden sm:flex items-center gap-2 rounded-lg border border-border bg-background/80 px-3 py-2 text-xs text-muted-foreground">
-                AL-KHAIR DRINKS & SNACKS
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={signOut}
-                className="h-9 rounded-lg px-3"
-              >
-                <LogOut className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Sign out</span>
-                <span className="sr-only sm:hidden">Sign out</span>
-              </Button>
+            <div className="hidden sm:flex items-center gap-2 rounded-lg border border-border bg-background/80 px-3 py-2 text-xs text-muted-foreground">
+              AL-KHAIR DRINKS & SNACKS
             </div>
           </header>
           <main className="flex-1 overflow-auto p-3 md:p-6 lg:p-8 scrollbar-thin">

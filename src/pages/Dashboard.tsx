@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,9 +8,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { AlertTriangle, ArrowRightLeft, DollarSign, Gift, Plus, Receipt, Repeat, TrendingUp, Truck } from "lucide-react";
 import { StockBadge, getProductStockLevel, getStockLevel, fmt } from "@/lib/stock-helpers";
 import type { Database } from "@/integrations/supabase/types";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 const today = new Date().toISOString().split("T")[0];
-const SalesBarChart = lazy(() => import("@/components/dashboard/SalesBarChart").then(module => ({ default: module.SalesBarChart })));
 
 type Product = Database["public"]["Tables"]["products"]["Row"];
 type RawMaterial = Database["public"]["Tables"]["raw_materials"]["Row"];
@@ -31,7 +31,6 @@ type InternalWithProduct = InternalTransaction & {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const canManage = true;
 
   const { data: products } = useQuery({
     queryKey: ["products"],
@@ -115,9 +114,7 @@ export default function Dashboard() {
     const minStock = Math.min(Number(p.shop_stock), Number(p.online_shop_stock));
     return getProductStockLevel(minStock) !== "available";
   }) ?? [];
-  const lowMaterials = canManage
-    ? rawMaterials?.filter(m => getStockLevel(Number(m.current_stock), Number(m.reorder_level)) !== "available") ?? []
-    : [];
+  const lowMaterials = rawMaterials?.filter(m => getStockLevel(Number(m.current_stock), Number(m.reorder_level)) !== "available") ?? [];
   const alertCount = lowProducts.length + lowMaterials.length;
 
   const weekChartData = (() => {
@@ -166,13 +163,11 @@ export default function Dashboard() {
 
   const quickActions = [
     { label: "Record sale", icon: Plus, variant: "default" as const, onClick: () => navigate("/sales", { state: { openDialog: true } }) },
+    { label: "Move to shop", icon: Truck, variant: "outline" as const, onClick: () => navigate("/transfers", { state: { openDialog: true, destination: "shop" } }) },
+    { label: "Move online", icon: Truck, variant: "outline" as const, onClick: () => navigate("/transfers", { state: { openDialog: true, destination: "online_shop" } }) },
     { label: "Add expense", icon: Receipt, variant: "outline" as const, onClick: () => navigate("/expenses", { state: { openDialog: true } }) },
-    ...(canManage ? [
-      { label: "Move to shop", icon: Truck, variant: "outline" as const, onClick: () => navigate("/transfers", { state: { openDialog: true, destination: "shop" } }) },
-      { label: "Move online", icon: Truck, variant: "outline" as const, onClick: () => navigate("/transfers", { state: { openDialog: true, destination: "online_shop" } }) },
-      { label: "Gift item", icon: Gift, variant: "outline" as const, onClick: () => navigate("/gifts", { state: { openDialog: true } }) },
-      { label: "Internal use", icon: Repeat, variant: "outline" as const, onClick: () => navigate("/internal", { state: { openDialog: true } }) },
-    ] : []),
+    { label: "Gift item", icon: Gift, variant: "outline" as const, onClick: () => navigate("/gifts", { state: { openDialog: true } }) },
+    { label: "Internal use", icon: Repeat, variant: "outline" as const, onClick: () => navigate("/internal", { state: { openDialog: true } }) },
   ];
   const [primaryAction, ...secondaryActions] = quickActions;
 
@@ -185,11 +180,9 @@ export default function Dashboard() {
             Today&apos;s sales, stock, and daily work.
           </p>
         </div>
-        {canManage && (
-          <Button variant="outline" size="sm" className="h-9 shrink-0 bg-card/80 px-3 md:h-10 md:px-4" onClick={() => navigate("/profit-loss")}>
-            View report
-          </Button>
-        )}
+        <Button variant="outline" size="sm" className="h-9 shrink-0 bg-card/80 px-3 md:h-10 md:px-4" onClick={() => navigate("/profit-loss")}>
+          View report
+        </Button>
       </div>
 
       <Card className="bg-card/95">
@@ -237,27 +230,23 @@ export default function Dashboard() {
           detail={`${todaySales?.length ?? 0} completed sales`}
           icon={<DollarSign className="h-4 w-4" />}
         />
-        {canManage && (
-          <MetricCard
-            label="Profit today"
-            value={fmt(todayProfit)}
-            detail={todayProfit >= 0 ? "Positive margin" : "Below cost"}
-            tone={todayProfit >= 0 ? "success" : "danger"}
-            icon={<TrendingUp className="h-4 w-4" />}
-          />
-        )}
-        {canManage && (
-          <MetricCard
-            label="Transfers today"
-            value={`${todayTransferQty}`}
-            detail="Units moved"
-            icon={<ArrowRightLeft className="h-4 w-4" />}
-          />
-        )}
+        <MetricCard
+          label="Profit today"
+          value={fmt(todayProfit)}
+          detail={todayProfit >= 0 ? "Positive margin" : "Below cost"}
+          tone={todayProfit >= 0 ? "success" : "danger"}
+          icon={<TrendingUp className="h-4 w-4" />}
+        />
+        <MetricCard
+          label="Transfers today"
+          value={`${todayTransferQty}`}
+          detail="Units moved"
+          icon={<ArrowRightLeft className="h-4 w-4" />}
+        />
         <MetricCard
           label="Attention"
           value={`${alertCount}`}
-          detail={canManage && totalPendingValue > 0 ? `${fmt(totalPendingValue)} pending internal` : "Stock alerts"}
+          detail={totalPendingValue > 0 ? `${fmt(totalPendingValue)} pending internal` : "Stock alerts"}
           tone={alertCount > 0 ? "danger" : "neutral"}
           icon={<AlertTriangle className="h-4 w-4" />}
         />
@@ -278,23 +267,37 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent className="grid gap-3 p-3 md:grid-cols-[1fr_180px] md:gap-4 md:p-5">
             <div className="h-48 md:h-72">
-              <Suspense fallback={<div className="h-full rounded-lg bg-muted/30" />}>
-                <SalesBarChart data={weekChartData} />
-              </Suspense>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={weekChartData} barCategoryGap="22%">
+                  <XAxis dataKey="date" tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                  <YAxis
+                    tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                    tickFormatter={v => `${Math.round(Number(v) / 1000)}k`}
+                    axisLine={false}
+                    tickLine={false}
+                    width={44}
+                  />
+                  <Tooltip
+                    formatter={(v: number) => fmt(v)}
+                    cursor={{ fill: "hsl(var(--muted) / 0.7)" }}
+                    contentStyle={{
+                      borderRadius: "8px",
+                      border: "1px solid hsl(var(--border))",
+                      boxShadow: "0 12px 28px hsl(30 18% 12% / 0.12)",
+                    }}
+                  />
+                  <Bar dataKey="revenue" radius={[6, 6, 0, 0]}>
+                    {weekChartData.map((_, i) => (
+                      <Cell key={i} fill={i === weekChartData.length - 1 ? "hsl(var(--primary))" : "hsl(var(--primary) / 0.28)"} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
             <div className="grid grid-cols-3 gap-2 md:grid-cols-1 md:gap-3">
               <MiniStat label="Revenue" value={fmt(todayRevenue)} />
-              {canManage ? (
-                <>
-                  <MiniStat label="Profit" value={fmt(todayProfit)} />
-                  <MiniStat label="Transfers" value={`${todayTransferQty} units`} />
-                </>
-              ) : (
-                <>
-                  <MiniStat label="Sales" value={`${todaySales?.length ?? 0}`} />
-                  <MiniStat label="Stock alerts" value={`${alertCount}`} />
-                </>
-              )}
+              <MiniStat label="Profit" value={fmt(todayProfit)} />
+              <MiniStat label="Transfers" value={`${todayTransferQty} units`} />
             </div>
           </CardContent>
         </Card>
@@ -330,7 +333,7 @@ export default function Dashboard() {
                     <StockBadge level={getStockLevel(Number(m.current_stock), Number(m.reorder_level))} />
                   </div>
                 ))}
-                {canManage && totalPendingValue > 0 && (
+                {totalPendingValue > 0 && (
                   <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 text-sm text-foreground">
                     {fmt(totalPendingValue)} is still pending from internal transactions.
                   </div>
