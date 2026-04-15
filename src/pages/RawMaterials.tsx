@@ -239,7 +239,7 @@ export default function RawMaterials() {
               <Input placeholder="Purchase Unit (e.g. bag)" value={form.purchase_unit} onChange={(e) => setForm({ ...form, purchase_unit: e.target.value })} required />
               <Input placeholder="Usage Unit (e.g. mudu)" value={form.usage_unit} onChange={(e) => setForm({ ...form, usage_unit: e.target.value })} required />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-sm text-muted-foreground">Current Stock (read-only)</label>
                 <Input type="number" value={form.current_stock} disabled className="bg-muted" />
