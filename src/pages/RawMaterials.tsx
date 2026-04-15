@@ -274,6 +274,8 @@ export default function RawMaterials() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <BulkRawMaterialForm open={bulkOpen} onOpenChange={setBulkOpen} />
     </div>
   );
 }
