@@ -119,7 +119,10 @@ export default function RawMaterials() {
     <div className="page-container">
       <div className="page-header">
         <h2 className="page-title">Raw Materials</h2>
-        <Button onClick={() => { setEditing(null); setForm(emptyForm); setOpen(true); }} className="w-full sm:w-auto"><Plus className="mr-2 h-4 w-4" />Add Material</Button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button variant="outline" onClick={() => setBulkOpen(true)} className="flex-1 sm:flex-none"><Plus className="mr-2 h-4 w-4" />Add Multiple</Button>
+          <Button onClick={() => { setEditing(null); setForm(emptyForm); setOpen(true); }} className="flex-1 sm:flex-none"><Plus className="mr-2 h-4 w-4" />Add Material</Button>
+        </div>
       </div>
 
       {/* Filters */}
