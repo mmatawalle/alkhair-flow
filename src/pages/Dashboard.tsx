@@ -127,95 +127,112 @@ export default function Dashboard() {
   const totalPendingValue = owesSummary.reduce((s, o) => s + o.productValue + o.cash, 0);
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
-      {/* Page Title */}
-      <div>
-        <h2 className="text-2xl font-semibold text-foreground tracking-tight">Dashboard</h2>
-        <p className="text-sm text-muted-foreground mt-1">Today's overview and quick actions</p>
+    <div className="page-container">
+      {/* Page Header */}
+      <div className="page-header">
+        <div>
+          <h2 className="page-title">Dashboard</h2>
+          <p className="page-subtitle">Today's overview and quick actions</p>
+        </div>
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-3">
-        <Button size="lg" className="h-12 md:h-14 text-sm md:text-base gap-2" onClick={() => navigate("/sales", { state: { openDialog: true } })}>
-          <Plus className="h-4 w-4 md:h-5 md:w-5" /> Sale
-        </Button>
-        <Button size="lg" variant="outline" className="h-12 md:h-14 text-sm md:text-base gap-2" onClick={() => navigate("/transfers", { state: { openDialog: true, destination: "shop" } })}>
-          <Truck className="h-4 w-4 md:h-5 md:w-5" /> To Shop
-        </Button>
-        <Button size="lg" variant="outline" className="h-12 md:h-14 text-sm md:text-base gap-2" onClick={() => navigate("/transfers", { state: { openDialog: true, destination: "online_shop" } })}>
-          <Truck className="h-4 w-4 md:h-5 md:w-5" /> To Online
-        </Button>
-        <Button size="lg" variant="outline" className="h-12 md:h-14 text-sm md:text-base gap-2" onClick={() => navigate("/expenses", { state: { openDialog: true } })}>
-          <Receipt className="h-4 w-4 md:h-5 md:w-5" /> Expense
-        </Button>
-        <Button size="lg" variant="outline" className="h-12 md:h-14 text-sm md:text-base gap-2" onClick={() => navigate("/gifts", { state: { openDialog: true } })}>
-          <Gift className="h-4 w-4 md:h-5 md:w-5" /> Gift
-        </Button>
-        <Button size="lg" variant="outline" className="h-12 md:h-14 text-sm md:text-base gap-2" onClick={() => navigate("/internal", { state: { openDialog: true } })}>
-          <Repeat className="h-4 w-4 md:h-5 md:w-5" /> Internal
-        </Button>
-      </div>
+      <Card className="border-dashed border-border/40 bg-card/50">
+        <CardContent className="p-4 md:p-5">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Quick Actions</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            <Button size="sm" className="h-10 text-sm gap-2" onClick={() => navigate("/sales", { state: { openDialog: true } })}>
+              <Plus className="h-3.5 w-3.5" /> Sale
+            </Button>
+            <Button size="sm" variant="outline" className="h-10 text-sm gap-2" onClick={() => navigate("/transfers", { state: { openDialog: true, destination: "shop" } })}>
+              <Truck className="h-3.5 w-3.5" /> To Shop
+            </Button>
+            <Button size="sm" variant="outline" className="h-10 text-sm gap-2" onClick={() => navigate("/transfers", { state: { openDialog: true, destination: "online_shop" } })}>
+              <Truck className="h-3.5 w-3.5" /> To Online
+            </Button>
+            <Button size="sm" variant="outline" className="h-10 text-sm gap-2" onClick={() => navigate("/expenses", { state: { openDialog: true } })}>
+              <Receipt className="h-3.5 w-3.5" /> Expense
+            </Button>
+            <Button size="sm" variant="outline" className="h-10 text-sm gap-2" onClick={() => navigate("/gifts", { state: { openDialog: true } })}>
+              <Gift className="h-3.5 w-3.5" /> Gift
+            </Button>
+            <Button size="sm" variant="outline" className="h-10 text-sm gap-2" onClick={() => navigate("/internal", { state: { openDialog: true } })}>
+              <Repeat className="h-3.5 w-3.5" /> Internal
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* KPI Cards */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:gap-5 grid-cols-2 lg:grid-cols-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Today Sales</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground/60" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{fmt(todayRevenue)}</div>
+          <CardContent className="p-5 md:p-6">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Today Sales</span>
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <DollarSign className="h-4 w-4 text-primary" />
+              </div>
+            </div>
+            <div className="text-2xl font-bold tracking-tight">{fmt(todayRevenue)}</div>
             <p className="text-xs text-muted-foreground mt-1">{todaySales?.length ?? 0} sales today</p>
           </CardContent>
         </Card>
+
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Today Profit</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground/60" />
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${todayProfit >= 0 ? "text-emerald-600" : "text-destructive"}`}>{fmt(todayProfit)}</div>
+          <CardContent className="p-5 md:p-6">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Today Profit</span>
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <TrendingUp className="h-4 w-4 text-primary" />
+              </div>
+            </div>
+            <div className={`text-2xl font-bold tracking-tight ${todayProfit >= 0 ? "text-emerald-600" : "text-destructive"}`}>{fmt(todayProfit)}</div>
           </CardContent>
         </Card>
+
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Today Transfers</CardTitle>
-            <ArrowRightLeft className="h-4 w-4 text-muted-foreground/60" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{todayTransferQty} units</div>
+          <CardContent className="p-5 md:p-6">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Transfers</span>
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <ArrowRightLeft className="h-4 w-4 text-primary" />
+              </div>
+            </div>
+            <div className="text-2xl font-bold tracking-tight">{todayTransferQty} <span className="text-sm font-normal text-muted-foreground">units</span></div>
           </CardContent>
         </Card>
-        <Card className={alertCount > 0 ? "border-destructive/30" : ""}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Alerts</CardTitle>
-            <AlertTriangle className={`h-4 w-4 ${alertCount > 0 ? "text-destructive" : "text-muted-foreground/60"}`} />
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${alertCount > 0 ? "text-destructive" : ""}`}>{alertCount} stock</div>
+
+        <Card className={alertCount > 0 ? "border-destructive/20" : ""}>
+          <CardContent className="p-5 md:p-6">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Alerts</span>
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${alertCount > 0 ? "bg-destructive/10" : "bg-primary/10"}`}>
+                <AlertTriangle className={`h-4 w-4 ${alertCount > 0 ? "text-destructive" : "text-primary"}`} />
+              </div>
+            </div>
+            <div className={`text-2xl font-bold tracking-tight ${alertCount > 0 ? "text-destructive" : ""}`}>{alertCount} <span className="text-sm font-normal text-muted-foreground">stock</span></div>
             {totalPendingValue > 0 && <p className="text-xs text-amber-600 font-medium mt-1">{fmt(totalPendingValue)} pending</p>}
           </CardContent>
         </Card>
       </div>
 
-      {/* Charts & Data */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Weekly Sales Chart */}
+      {/* Charts & Performance */}
+      <div className="grid gap-5 lg:grid-cols-2">
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader>
             <CardTitle>Sales This Week</CardTitle>
             {topProduct && <p className="text-xs text-muted-foreground">Top seller: {topProduct.name} ({topProduct.qty} units)</p>}
           </CardHeader>
           <CardContent>
-            <div className="h-52">
+            <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={weekChartData}>
-                  <XAxis dataKey="date" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12 }} tickFormatter={v => `₦${(v / 1000).toFixed(0)}k`} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={(v: number) => fmt(v)} cursor={{ fill: 'hsl(36 18% 93% / 0.5)' }} />
-                  <Bar dataKey="revenue" radius={[6, 6, 0, 0]}>
+                <BarChart data={weekChartData} barCategoryGap="20%">
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'hsl(25 12% 48%)' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: 'hsl(25 12% 48%)' }} tickFormatter={v => `₦${(v / 1000).toFixed(0)}k`} axisLine={false} tickLine={false} width={50} />
+                  <Tooltip formatter={(v: number) => fmt(v)} cursor={{ fill: 'hsl(36 18% 93% / 0.5)' }} contentStyle={{ borderRadius: '0.75rem', border: '1px solid hsl(36 18% 88%)', boxShadow: '0 4px 12px hsl(25 30% 14% / 0.06)' }} />
+                  <Bar dataKey="revenue" radius={[8, 8, 0, 0]}>
                     {weekChartData.map((_, i) => (
-                      <Cell key={i} fill={i === weekChartData.length - 1 ? "hsl(40, 55%, 55%)" : "hsl(40, 55%, 55%, 0.3)"} />
+                      <Cell key={i} fill={i === weekChartData.length - 1 ? "hsl(40, 55%, 55%)" : "hsl(40, 55%, 55%, 0.25)"} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -224,15 +241,18 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Pending Internal Transactions */}
         <Card>
           <CardHeader>
-            <CardTitle>Pending Internal Transactions</CardTitle>
-            {totalPendingValue > 0 && <p className="text-xs text-amber-600">Total pending: {fmt(totalPendingValue)}</p>}
+            <div className="flex items-center justify-between">
+              <CardTitle>Pending Internal</CardTitle>
+              {totalPendingValue > 0 && <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-md">{fmt(totalPendingValue)}</span>}
+            </div>
           </CardHeader>
           <CardContent>
             {owesSummary.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No pending transactions ✓</p>
+              <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
+                No pending transactions ✓
+              </div>
             ) : (
               <Table>
                 <TableHeader>
@@ -257,17 +277,21 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+      </div>
 
-        {/* Stock Alerts */}
+      {/* Detailed Data Section */}
+      <div className="grid gap-5 lg:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle>Stock Alerts</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
+          <CardHeader>
+            <CardTitle>Stock Alerts</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
             {lowProducts.length > 0 && (
               <div>
-                <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Finished Products</p>
-                <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wider">Finished Products</p>
+                <div className="space-y-2.5">
                   {lowProducts.map(p => (
-                    <div key={p.id} className="flex flex-col sm:flex-row sm:items-center justify-between text-sm gap-1">
+                    <div key={p.id} className="flex flex-col sm:flex-row sm:items-center justify-between text-sm gap-1 py-1">
                       <span className="font-medium">{p.name} ({p.bottle_size})</span>
                       <div className="flex items-center gap-2 text-xs sm:text-sm">
                         <span className="text-muted-foreground">Shop: {p.shop_stock} | Online: {p.online_shop_stock} | Prod: {p.production_stock}</span>
@@ -280,10 +304,10 @@ export default function Dashboard() {
             )}
             {lowMaterials.length > 0 && (
               <div>
-                <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Raw Materials</p>
-                <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wider">Raw Materials</p>
+                <div className="space-y-2.5">
                   {lowMaterials.map(m => (
-                    <div key={m.id} className="flex items-center justify-between text-sm">
+                    <div key={m.id} className="flex items-center justify-between text-sm py-1">
                       <span className="font-medium">{m.name}</span>
                       <div className="flex items-center gap-3">
                         <span className="text-muted-foreground">{m.current_stock} {m.usage_unit}</span>
@@ -294,16 +318,21 @@ export default function Dashboard() {
                 </div>
               </div>
             )}
-            {alertCount === 0 && <p className="text-sm text-muted-foreground">All stock levels are good ✓</p>}
+            {alertCount === 0 && (
+              <div className="flex items-center justify-center h-24 text-sm text-muted-foreground">
+                All stock levels are good ✓
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Product Stock */}
         <Card>
-          <CardHeader><CardTitle>Product Stock</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Product Stock</CardTitle>
+          </CardHeader>
           <CardContent>
             {!products?.length ? (
-              <p className="text-sm text-muted-foreground">No products yet.</p>
+              <div className="flex items-center justify-center h-24 text-sm text-muted-foreground">No products yet.</div>
             ) : (
               <Table>
                 <TableHeader>
@@ -318,7 +347,7 @@ export default function Dashboard() {
                 <TableBody>
                   {products.map(p => (
                     <TableRow key={p.id}>
-                      <TableCell className="font-medium">{p.name} ({p.bottle_size})</TableCell>
+                      <TableCell className="font-medium">{p.name} <span className="text-muted-foreground text-xs">({p.bottle_size})</span></TableCell>
                       <TableCell>{p.production_stock}</TableCell>
                       <TableCell>{p.shop_stock}</TableCell>
                       <TableCell>{p.online_shop_stock}</TableCell>

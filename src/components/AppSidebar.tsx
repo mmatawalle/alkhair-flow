@@ -12,7 +12,6 @@ import {
   SidebarFooter, SidebarHeader, useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 
 const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -41,15 +40,21 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="py-5 px-4">
-        {!collapsed && (
-          <span className="text-sidebar-primary font-bold text-lg tracking-tight">Al-Khair</span>
-        )}
-        {collapsed && (
-          <span className="text-sidebar-primary font-bold text-lg">A</span>
+        {!collapsed ? (
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-sidebar-primary/15 flex items-center justify-center flex-shrink-0">
+              <span className="text-sidebar-primary font-bold text-sm">AK</span>
+            </div>
+            <span className="text-sidebar-foreground font-semibold text-sm tracking-tight">Al-Khair</span>
+          </div>
+        ) : (
+          <div className="w-8 h-8 rounded-lg bg-sidebar-primary/15 flex items-center justify-center mx-auto">
+            <span className="text-sidebar-primary font-bold text-sm">A</span>
+          </div>
         )}
       </SidebarHeader>
-      <Separator className="bg-sidebar-border/60 mx-3" />
-      <SidebarContent className="pt-2">
+
+      <SidebarContent className="pt-1 px-2">
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -79,15 +84,17 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="pb-4">
-        <Separator className="bg-sidebar-border/60 mx-3 mb-3" />
-        {!collapsed && userFullName && (
-          <p className="px-4 pb-1 text-xs text-sidebar-foreground/50 truncate">{userFullName}</p>
-        )}
-        <Button variant="ghost" size="sm" onClick={signOut} className="w-full justify-start text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/60">
-          <LogOut className="mr-2 h-4 w-4" />
-          {!collapsed && "Sign Out"}
-        </Button>
+
+      <SidebarFooter className="pb-4 px-2">
+        <div className="border-t border-sidebar-border/40 pt-3 mt-1">
+          {!collapsed && userFullName && (
+            <p className="px-3 pb-2 text-xs text-sidebar-foreground/40 truncate">{userFullName}</p>
+          )}
+          <Button variant="ghost" size="sm" onClick={signOut} className="w-full justify-start text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/60 h-9">
+            <LogOut className="mr-2 h-4 w-4" />
+            {!collapsed && "Sign Out"}
+          </Button>
+        </div>
       </SidebarFooter>
     </Sidebar>
   );
