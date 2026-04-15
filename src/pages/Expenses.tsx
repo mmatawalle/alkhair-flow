@@ -18,7 +18,6 @@ import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { useSortableTable } from "@/hooks/use-sortable-table";
 import { logAudit } from "@/lib/audit";
-import { useAuth } from "@/contexts/AuthContext";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -46,8 +45,8 @@ export default function Expenses() {
   const [receiptExpense, setReceiptExpense] = useState<any>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
-  const { isStaff, userFullName } = useAuth();
-  const canManage = !isStaff;
+  const userFullName = "";
+  const canManage = true;
 
   useEffect(() => {
     if ((location.state as any)?.openDialog) {

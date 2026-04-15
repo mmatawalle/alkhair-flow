@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { SaleReceipt } from "@/components/SaleReceipt";
 import { downloadCSV } from "@/lib/csv-export";
-import { useAuth } from "@/contexts/AuthContext";
 
 interface SaleItem {
   key: number;
@@ -60,8 +59,7 @@ export default function Sales() {
   const [receiptSale, setReceiptSale] = useState<any>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
-  const { isStaff } = useAuth();
-  const canManage = !isStaff;
+  const canManage = true;
 
   useEffect(() => {
     if ((location.state as any)?.openDialog) {

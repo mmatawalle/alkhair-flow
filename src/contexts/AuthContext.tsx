@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { AppRole, getAccessFlags } from "@/lib/access";
 
 interface AuthContextType {
   session: Session | null;
@@ -28,17 +27,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchRole = async (userId: string) => {
     try {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId);
-
-      if (error) throw error;
-
-      const roles = (data ?? []).map(({ role }) => role).filter(Boolean) as AppRole[];
-      const access = getAccessFlags(roles);
-      setIsSuperAdmin(access.isSuperAdmin);
-      setIsStaff(access.isStaff);
+      const { data } = await supabase.rpc("has_role", { _user_id: userId, _role: "super_admin" });
+      setIsSuperAdmin(!!data);
+      setIsStaff(false);
     } catch {
       setIsSuperAdmin(false);
       setIsStaff(false);
@@ -57,6 +48,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setLoading(true);
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        await Promise.all([
+          fetchRole(session.user.id),
+          fetchProfile(session.user.id),
+        ]);
+      } else {
+        setIsSuperAdmin(false);
+        setIsStaff(false);
+        setUserFullName("");
+      }
+      setLoading(false);
+    });
+
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {

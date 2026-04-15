@@ -8,7 +8,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { AlertTriangle, ArrowRightLeft, DollarSign, Gift, Plus, Receipt, Repeat, TrendingUp, Truck } from "lucide-react";
 import { StockBadge, getProductStockLevel, getStockLevel, fmt } from "@/lib/stock-helpers";
 import type { Database } from "@/integrations/supabase/types";
-import { useAuth } from "@/contexts/AuthContext";
 
 const today = new Date().toISOString().split("T")[0];
 const SalesBarChart = lazy(() => import("@/components/dashboard/SalesBarChart").then(module => ({ default: module.SalesBarChart })));
@@ -32,8 +31,7 @@ type InternalWithProduct = InternalTransaction & {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { isStaff } = useAuth();
-  const canManage = !isStaff;
+  const canManage = true;
 
   const { data: products } = useQuery({
     queryKey: ["products"],
@@ -46,7 +44,6 @@ export default function Dashboard() {
 
   const { data: rawMaterials } = useQuery({
     queryKey: ["raw_materials"],
-    enabled: canManage,
     queryFn: async () => {
       const { data, error } = await supabase.from("raw_materials").select("*").order("name");
       if (error) throw error;
@@ -70,7 +67,6 @@ export default function Dashboard() {
 
   const { data: todayTransfers } = useQuery({
     queryKey: ["transfer_records", "today"],
-    enabled: canManage,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("transfer_records")
@@ -84,7 +80,6 @@ export default function Dashboard() {
 
   const { data: pendingTransactions } = useQuery({
     queryKey: ["internal_transactions", "pending"],
-    enabled: canManage,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("internal_transactions")

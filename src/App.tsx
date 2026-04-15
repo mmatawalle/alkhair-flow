@@ -45,15 +45,7 @@ function LoadingScreen() {
 }
 
 function ProtectedRoutes() {
-  const { user, loading, isStaff } = useAuth();
-  const staffRoutes = (
-    <>
-      <Route path="/" element={<Dashboard />} />
-      <Route path="/sales" element={<Sales />} />
-      <Route path="/expenses" element={<Expenses />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </>
-  );
+  const { user, loading } = useAuth();
 
   if (loading) {
     return <LoadingScreen />;
@@ -65,27 +57,23 @@ function ProtectedRoutes() {
     <AppLayout>
       <Suspense fallback={<LoadingScreen />}>
         <Routes>
-          {!isStaff ? (
-            <>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/raw-materials" element={<RawMaterials />} />
-              <Route path="/products" element={<Products />} />
-              <Route path="/purchases" element={<Purchases />} />
-              <Route path="/production" element={<Production />} />
-              <Route path="/transfers" element={<Transfers />} />
-              <Route path="/sales" element={<Sales />} />
-              <Route path="/internal" element={<InternalTransactions />} />
-              <Route path="/expenses" element={<Expenses />} />
-              <Route path="/gifts" element={<Gifts />} />
-              <Route path="/profit-loss" element={<ProfitLoss />} />
-              <Route path="/stock-adjustments" element={<StockAdjustments />} />
-              <Route path="/vendors" element={<Vendors />} />
-              <Route path="/vendor-ops" element={<VendorConsignments />} />
-              <Route path="/audit-log" element={<AuditLog />} />
-              <Route path="/users" element={<UserManagement />} />
-              <Route path="*" element={<NotFound />} />
-            </>
-          ) : staffRoutes}
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/raw-materials" element={<RawMaterials />} />
+          <Route path="/products" element={<Products />} />
+          <Route path="/purchases" element={<Purchases />} />
+          <Route path="/production" element={<Production />} />
+          <Route path="/transfers" element={<Transfers />} />
+          <Route path="/sales" element={<Sales />} />
+          <Route path="/internal" element={<InternalTransactions />} />
+          <Route path="/expenses" element={<Expenses />} />
+          <Route path="/gifts" element={<Gifts />} />
+          <Route path="/profit-loss" element={<ProfitLoss />} />
+          <Route path="/stock-adjustments" element={<StockAdjustments />} />
+          <Route path="/vendors" element={<Vendors />} />
+          <Route path="/vendor-ops" element={<VendorConsignments />} />
+          <Route path="/audit-log" element={<AuditLog />} />
+          <Route path="/users" element={<UserManagement />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
     </AppLayout>
