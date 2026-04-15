@@ -7,6 +7,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   isSuperAdmin: boolean;
+  isStaff: boolean;
   userFullName: string;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -21,14 +22,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isStaff, setIsStaff] = useState(false);
   const [userFullName, setUserFullName] = useState("");
 
   const fetchRole = async (userId: string) => {
     try {
-      const { data } = await supabase.rpc("has_role", { _user_id: userId, _role: "super_admin" });
-      setIsSuperAdmin(!!data);
+      const [{ data: superAdmin }, { data: staff }] = await Promise.all([
+        supabase.rpc("has_role", { _user_id: userId, _role: "super_admin" }),
+        supabase.rpc("has_role", { _user_id: userId, _role: "staff" }),
+      ]);
+      setIsSuperAdmin(!!superAdmin);
+      setIsStaff(!!staff || !superAdmin);
     } catch {
       setIsSuperAdmin(false);
+      setIsStaff(true);
     }
   };
 
@@ -42,29 +49,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setLoading(true);
       setSession(session);
       setUser(session?.user ?? null);
-      setLoading(false);
       if (session?.user) {
-        setTimeout(() => {
-          fetchRole(session.user.id);
-          fetchProfile(session.user.id);
-        }, 0);
+        await Promise.all([
+          fetchRole(session.user.id),
+          fetchProfile(session.user.id),
+        ]);
       } else {
         setIsSuperAdmin(false);
+        setIsStaff(false);
         setUserFullName("");
       }
+      setLoading(false);
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      setLoading(false);
       if (session?.user) {
-        fetchRole(session.user.id);
-        fetchProfile(session.user.id);
+        await Promise.all([
+          fetchRole(session.user.id),
+          fetchProfile(session.user.id),
+        ]);
+      } else {
+        setIsSuperAdmin(false);
+        setIsStaff(false);
+        setUserFullName("");
       }
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
@@ -81,7 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, loading, isSuperAdmin, userFullName, signIn, signOut }}>
+    <AuthContext.Provider value={{ session, user, loading, isSuperAdmin, isStaff, userFullName, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );

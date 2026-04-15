@@ -9,6 +9,7 @@ import { AlertTriangle, ArrowRightLeft, DollarSign, Gift, Plus, Receipt, Repeat,
 import { StockBadge, getProductStockLevel, getStockLevel, fmt } from "@/lib/stock-helpers";
 import type { Database } from "@/integrations/supabase/types";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { useAuth } from "@/contexts/AuthContext";
 
 const today = new Date().toISOString().split("T")[0];
 
@@ -31,6 +32,7 @@ type InternalWithProduct = InternalTransaction & {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { isSuperAdmin } = useAuth();
 
   const { data: products } = useQuery({
     queryKey: ["products"],
@@ -163,11 +165,13 @@ export default function Dashboard() {
 
   const quickActions = [
     { label: "Record sale", icon: Plus, variant: "default" as const, onClick: () => navigate("/sales", { state: { openDialog: true } }) },
-    { label: "Move to shop", icon: Truck, variant: "outline" as const, onClick: () => navigate("/transfers", { state: { openDialog: true, destination: "shop" } }) },
-    { label: "Move online", icon: Truck, variant: "outline" as const, onClick: () => navigate("/transfers", { state: { openDialog: true, destination: "online_shop" } }) },
     { label: "Add expense", icon: Receipt, variant: "outline" as const, onClick: () => navigate("/expenses", { state: { openDialog: true } }) },
-    { label: "Gift item", icon: Gift, variant: "outline" as const, onClick: () => navigate("/gifts", { state: { openDialog: true } }) },
-    { label: "Internal use", icon: Repeat, variant: "outline" as const, onClick: () => navigate("/internal", { state: { openDialog: true } }) },
+    ...(isSuperAdmin ? [
+      { label: "Move to shop", icon: Truck, variant: "outline" as const, onClick: () => navigate("/transfers", { state: { openDialog: true, destination: "shop" } }) },
+      { label: "Move online", icon: Truck, variant: "outline" as const, onClick: () => navigate("/transfers", { state: { openDialog: true, destination: "online_shop" } }) },
+      { label: "Gift item", icon: Gift, variant: "outline" as const, onClick: () => navigate("/gifts", { state: { openDialog: true } }) },
+      { label: "Internal use", icon: Repeat, variant: "outline" as const, onClick: () => navigate("/internal", { state: { openDialog: true } }) },
+    ] : []),
   ];
   const [primaryAction, ...secondaryActions] = quickActions;
 
@@ -180,9 +184,11 @@ export default function Dashboard() {
             Today&apos;s sales, stock, and daily work.
           </p>
         </div>
-        <Button variant="outline" size="sm" className="h-9 shrink-0 bg-card/80 px-3 md:h-10 md:px-4" onClick={() => navigate("/profit-loss")}>
-          View report
-        </Button>
+        {isSuperAdmin && (
+          <Button variant="outline" size="sm" className="h-9 shrink-0 bg-card/80 px-3 md:h-10 md:px-4" onClick={() => navigate("/profit-loss")}>
+            View report
+          </Button>
+        )}
       </div>
 
       <Card className="bg-card/95">
@@ -230,23 +236,27 @@ export default function Dashboard() {
           detail={`${todaySales?.length ?? 0} completed sales`}
           icon={<DollarSign className="h-4 w-4" />}
         />
-        <MetricCard
-          label="Profit today"
-          value={fmt(todayProfit)}
-          detail={todayProfit >= 0 ? "Positive margin" : "Below cost"}
-          tone={todayProfit >= 0 ? "success" : "danger"}
-          icon={<TrendingUp className="h-4 w-4" />}
-        />
-        <MetricCard
-          label="Transfers today"
-          value={`${todayTransferQty}`}
-          detail="Units moved"
-          icon={<ArrowRightLeft className="h-4 w-4" />}
-        />
+        {isSuperAdmin && (
+          <MetricCard
+            label="Profit today"
+            value={fmt(todayProfit)}
+            detail={todayProfit >= 0 ? "Positive margin" : "Below cost"}
+            tone={todayProfit >= 0 ? "success" : "danger"}
+            icon={<TrendingUp className="h-4 w-4" />}
+          />
+        )}
+        {isSuperAdmin && (
+          <MetricCard
+            label="Transfers today"
+            value={`${todayTransferQty}`}
+            detail="Units moved"
+            icon={<ArrowRightLeft className="h-4 w-4" />}
+          />
+        )}
         <MetricCard
           label="Attention"
           value={`${alertCount}`}
-          detail={totalPendingValue > 0 ? `${fmt(totalPendingValue)} pending internal` : "Stock alerts"}
+          detail={isSuperAdmin && totalPendingValue > 0 ? `${fmt(totalPendingValue)} pending internal` : "Stock alerts"}
           tone={alertCount > 0 ? "danger" : "neutral"}
           icon={<AlertTriangle className="h-4 w-4" />}
         />
@@ -296,8 +306,17 @@ export default function Dashboard() {
             </div>
             <div className="grid grid-cols-3 gap-2 md:grid-cols-1 md:gap-3">
               <MiniStat label="Revenue" value={fmt(todayRevenue)} />
-              <MiniStat label="Profit" value={fmt(todayProfit)} />
-              <MiniStat label="Transfers" value={`${todayTransferQty} units`} />
+              {isSuperAdmin ? (
+                <>
+                  <MiniStat label="Profit" value={fmt(todayProfit)} />
+                  <MiniStat label="Transfers" value={`${todayTransferQty} units`} />
+                </>
+              ) : (
+                <>
+                  <MiniStat label="Sales" value={`${todaySales?.length ?? 0}`} />
+                  <MiniStat label="Stock alerts" value={`${alertCount}`} />
+                </>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -333,7 +352,7 @@ export default function Dashboard() {
                     <StockBadge level={getStockLevel(Number(m.current_stock), Number(m.reorder_level))} />
                   </div>
                 ))}
-                {totalPendingValue > 0 && (
+                {isSuperAdmin && totalPendingValue > 0 && (
                   <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 text-sm text-foreground">
                     {fmt(totalPendingValue)} is still pending from internal transactions.
                   </div>

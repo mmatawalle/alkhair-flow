@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { SaleReceipt } from "@/components/SaleReceipt";
 import { downloadCSV } from "@/lib/csv-export";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface SaleItem {
   key: number;
@@ -59,6 +60,7 @@ export default function Sales() {
   const [receiptSale, setReceiptSale] = useState<any>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { isSuperAdmin } = useAuth();
 
   useEffect(() => {
     if ((location.state as any)?.openDialog) {
@@ -323,13 +325,15 @@ export default function Sales() {
           <h2 className="page-title">Sales</h2>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
-          <Button variant="outline" className="flex-1 sm:flex-none" onClick={() => {
-            if (!filtered?.length) return;
-            downloadCSV("sales.csv",
-              ["Date", "Product", "Source", "Qty", "Revenue", "COGS", "Profit", "Type", "Voided"],
-              filtered.map((s: any) => [s.sale_date, `${s.products?.name} (${s.products?.bottle_size})`, s.sale_source, s.quantity_sold, s.total_revenue, s.total_cogs, s.profit, s.sale_type, s.voided ? "Yes" : "No"])
-            );
-          }}><Download className="mr-2 h-4 w-4" />Export</Button>
+          {isSuperAdmin && (
+            <Button variant="outline" className="flex-1 sm:flex-none" onClick={() => {
+              if (!filtered?.length) return;
+              downloadCSV("sales.csv",
+                ["Date", "Product", "Source", "Qty", "Revenue", "COGS", "Profit", "Type", "Voided"],
+                filtered.map((s: any) => [s.sale_date, `${s.products?.name} (${s.products?.bottle_size})`, s.sale_source, s.quantity_sold, s.total_revenue, s.total_cogs, s.profit, s.sale_type, s.voided ? "Yes" : "No"])
+              );
+            }}><Download className="mr-2 h-4 w-4" />Export</Button>
+          )}
           <Button className="flex-1 sm:flex-none" onClick={() => { resetForm(); setOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Sale</Button>
         </div>
       </div>
@@ -373,7 +377,7 @@ export default function Sales() {
               <Button variant="ghost" size="sm" className="h-8" onClick={() => setReceiptSale(s)}>
                 <Receipt className="h-3.5 w-3.5 mr-1" /> Receipt
               </Button>
-              {!s.voided && (
+              {isSuperAdmin && !s.voided && (
                 <>
                   <Button variant="ghost" size="sm" className="h-8" onClick={() => openEdit(s)}>
                     <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
@@ -425,7 +429,7 @@ export default function Sales() {
                           <Button variant="ghost" size="icon" title="Receipt" onClick={() => setReceiptSale(s)}>
                             <Receipt className="h-4 w-4" />
                           </Button>
-                          {!s.voided && (
+                          {isSuperAdmin && !s.voided && (
                             <>
                               <Button variant="ghost" size="icon" title="Edit" onClick={() => openEdit(s)}>
                                 <Pencil className="h-4 w-4" />

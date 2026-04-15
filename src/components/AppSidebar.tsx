@@ -64,12 +64,25 @@ const sections = [
 ];
 
 const navItems = sections.flatMap(section => section.items);
+const staffItems = [
+  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Sales", url: "/sales", icon: DollarSign },
+  { title: "Expenses", url: "/expenses", icon: Receipt },
+];
+const staffSections = [
+  {
+    label: "Shop",
+    items: staffItems,
+  },
+];
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
   const { signOut, isSuperAdmin, userFullName } = useAuth();
+  const visibleSections = isSuperAdmin ? sections : staffSections;
+  const visibleNavItems = isSuperAdmin ? navItems : staffItems;
   const isActive = (url: string) => url === "/" ? location.pathname === "/" : location.pathname.startsWith(url);
 
   if (collapsed) {
@@ -85,7 +98,7 @@ export function AppSidebar() {
 
         <SidebarContent className="px-2 py-1">
           <SidebarMenu className="gap-1.5">
-            {navItems.map((item) => (
+            {visibleNavItems.map((item) => (
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton
                   asChild
@@ -143,7 +156,7 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="px-2 pb-2 pt-1">
-        {sections.map((section) => (
+        {visibleSections.map((section) => (
           <SidebarGroup key={section.label} className="py-1">
             <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
             <SidebarGroupContent>
