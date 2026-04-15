@@ -74,7 +74,6 @@ export default function Dashboard() {
   const todayProfit = todaySales?.reduce((s, r) => s + Number(r.profit), 0) ?? 0;
   const todayTransferQty = todayTransfers?.reduce((s, r) => s + Number(r.quantity_transferred), 0) ?? 0;
 
-  // Low stock alerts — check all locations
   const lowProducts = products?.filter(p => {
     const minStock = Math.min(Number(p.shop_stock), Number(p.online_shop_stock));
     return getProductStockLevel(minStock) !== "available";
@@ -82,7 +81,6 @@ export default function Dashboard() {
   const lowMaterials = rawMaterials?.filter(m => getStockLevel(Number(m.current_stock), Number(m.reorder_level)) !== "available") ?? [];
   const alertCount = lowProducts.length + lowMaterials.length;
 
-  // Weekly chart data
   const weekChartData = (() => {
     if (!weekSales) return [];
     const map: Record<string, { date: string; revenue: number }> = {};
@@ -99,7 +97,6 @@ export default function Dashboard() {
     return Object.values(map);
   })();
 
-  // Top selling product
   const topProduct = (() => {
     if (!weekSales?.length) return null;
     const counts: Record<string, { name: string; qty: number }> = {};
@@ -111,7 +108,6 @@ export default function Dashboard() {
     return Object.values(counts).sort((a, b) => b.qty - a.qty)[0] || null;
   })();
 
-  // Pending summary with VALUE
   const owesSummary = (() => {
     if (!pendingTransactions?.length) return [];
     const map: Record<string, { name: string; productItems: number; productValue: number; cash: number }> = {};
@@ -131,83 +127,95 @@ export default function Dashboard() {
   const totalPendingValue = owesSummary.reduce((s, o) => s + o.productValue + o.cash, 0);
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-foreground">Dashboard</h2>
+    <div className="space-y-8 max-w-7xl mx-auto">
+      {/* Page Title */}
+      <div>
+        <h2 className="text-2xl font-semibold text-foreground tracking-tight">Dashboard</h2>
+        <p className="text-sm text-muted-foreground mt-1">Today's overview and quick actions</p>
+      </div>
 
       {/* Quick Actions */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-3">
         <Button size="lg" className="h-12 md:h-14 text-sm md:text-base gap-2" onClick={() => navigate("/sales", { state: { openDialog: true } })}>
           <Plus className="h-4 w-4 md:h-5 md:w-5" /> Sale
         </Button>
-        <Button size="lg" variant="outline" className="h-12 md:h-14 text-sm md:text-base gap-2 border-primary/30 hover:bg-primary/5" onClick={() => navigate("/transfers", { state: { openDialog: true, destination: "shop" } })}>
+        <Button size="lg" variant="outline" className="h-12 md:h-14 text-sm md:text-base gap-2" onClick={() => navigate("/transfers", { state: { openDialog: true, destination: "shop" } })}>
           <Truck className="h-4 w-4 md:h-5 md:w-5" /> To Shop
         </Button>
-        <Button size="lg" variant="outline" className="h-12 md:h-14 text-sm md:text-base gap-2 border-primary/30 hover:bg-primary/5" onClick={() => navigate("/transfers", { state: { openDialog: true, destination: "online_shop" } })}>
+        <Button size="lg" variant="outline" className="h-12 md:h-14 text-sm md:text-base gap-2" onClick={() => navigate("/transfers", { state: { openDialog: true, destination: "online_shop" } })}>
           <Truck className="h-4 w-4 md:h-5 md:w-5" /> To Online
         </Button>
-        <Button size="lg" variant="outline" className="h-12 md:h-14 text-sm md:text-base gap-2 border-primary/30 hover:bg-primary/5" onClick={() => navigate("/expenses", { state: { openDialog: true } })}>
+        <Button size="lg" variant="outline" className="h-12 md:h-14 text-sm md:text-base gap-2" onClick={() => navigate("/expenses", { state: { openDialog: true } })}>
           <Receipt className="h-4 w-4 md:h-5 md:w-5" /> Expense
         </Button>
-        <Button size="lg" variant="outline" className="h-12 md:h-14 text-sm md:text-base gap-2 border-primary/30 hover:bg-primary/5" onClick={() => navigate("/gifts", { state: { openDialog: true } })}>
+        <Button size="lg" variant="outline" className="h-12 md:h-14 text-sm md:text-base gap-2" onClick={() => navigate("/gifts", { state: { openDialog: true } })}>
           <Gift className="h-4 w-4 md:h-5 md:w-5" /> Gift
         </Button>
-        <Button size="lg" variant="outline" className="h-12 md:h-14 text-sm md:text-base gap-2 border-primary/30 hover:bg-primary/5" onClick={() => navigate("/internal", { state: { openDialog: true } })}>
+        <Button size="lg" variant="outline" className="h-12 md:h-14 text-sm md:text-base gap-2" onClick={() => navigate("/internal", { state: { openDialog: true } })}>
           <Repeat className="h-4 w-4 md:h-5 md:w-5" /> Internal
         </Button>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Today Sales</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Today Sales</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground/60" />
           </CardHeader>
-          <CardContent><div className="text-2xl font-bold">{fmt(todayRevenue)}</div><p className="text-xs text-muted-foreground">{todaySales?.length ?? 0} sales today</p></CardContent>
+          <CardContent>
+            <div className="text-2xl font-bold">{fmt(todayRevenue)}</div>
+            <p className="text-xs text-muted-foreground mt-1">{todaySales?.length ?? 0} sales today</p>
+          </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Today Profit</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Today Profit</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground/60" />
           </CardHeader>
-          <CardContent><div className={`text-2xl font-bold ${todayProfit >= 0 ? "text-emerald-600" : "text-destructive"}`}>{fmt(todayProfit)}</div></CardContent>
+          <CardContent>
+            <div className={`text-2xl font-bold ${todayProfit >= 0 ? "text-emerald-600" : "text-destructive"}`}>{fmt(todayProfit)}</div>
+          </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Today Transfers</CardTitle>
-            <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Today Transfers</CardTitle>
+            <ArrowRightLeft className="h-4 w-4 text-muted-foreground/60" />
           </CardHeader>
-          <CardContent><div className="text-2xl font-bold">{todayTransferQty} units</div></CardContent>
+          <CardContent>
+            <div className="text-2xl font-bold">{todayTransferQty} units</div>
+          </CardContent>
         </Card>
-        <Card className={alertCount > 0 ? "border-destructive/40" : ""}>
+        <Card className={alertCount > 0 ? "border-destructive/30" : ""}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Alerts</CardTitle>
-            <AlertTriangle className={`h-4 w-4 ${alertCount > 0 ? "text-destructive" : "text-muted-foreground"}`} />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Alerts</CardTitle>
+            <AlertTriangle className={`h-4 w-4 ${alertCount > 0 ? "text-destructive" : "text-muted-foreground/60"}`} />
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${alertCount > 0 ? "text-destructive" : ""}`}>{alertCount} stock</div>
-            {totalPendingValue > 0 && <p className="text-xs text-amber-600 font-medium">{fmt(totalPendingValue)} pending</p>}
+            {totalPendingValue > 0 && <p className="text-xs text-amber-600 font-medium mt-1">{fmt(totalPendingValue)} pending</p>}
           </CardContent>
         </Card>
       </div>
 
+      {/* Charts & Data */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Weekly Sales Chart */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Sales This Week</CardTitle>
+            <CardTitle>Sales This Week</CardTitle>
             {topProduct && <p className="text-xs text-muted-foreground">Top seller: {topProduct.name} ({topProduct.qty} units)</p>}
           </CardHeader>
           <CardContent>
-            <div className="h-48">
+            <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={weekChartData}>
-                  <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} tickFormatter={v => `₦${(v / 1000).toFixed(0)}k`} />
-                  <Tooltip formatter={(v: number) => fmt(v)} />
-                  <Bar dataKey="revenue" radius={[4, 4, 0, 0]}>
+                  <XAxis dataKey="date" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 12 }} tickFormatter={v => `₦${(v / 1000).toFixed(0)}k`} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(v: number) => fmt(v)} cursor={{ fill: 'hsl(36 18% 93% / 0.5)' }} />
+                  <Bar dataKey="revenue" radius={[6, 6, 0, 0]}>
                     {weekChartData.map((_, i) => (
-                      <Cell key={i} fill={i === weekChartData.length - 1 ? "hsl(var(--primary))" : "hsl(var(--primary) / 0.4)"} />
+                      <Cell key={i} fill={i === weekChartData.length - 1 ? "hsl(40, 55%, 55%)" : "hsl(40, 55%, 55%, 0.3)"} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -216,10 +224,10 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Who Owes What — now with values */}
+        {/* Pending Internal Transactions */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Pending Internal Transactions</CardTitle>
+            <CardTitle>Pending Internal Transactions</CardTitle>
             {totalPendingValue > 0 && <p className="text-xs text-amber-600">Total pending: {fmt(totalPendingValue)}</p>}
           </CardHeader>
           <CardContent>
@@ -252,14 +260,14 @@ export default function Dashboard() {
 
         {/* Stock Alerts */}
         <Card>
-          <CardHeader><CardTitle className="text-base">Stock Alerts</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Stock Alerts</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             {lowProducts.length > 0 && (
               <div>
-                <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase">Finished Products</p>
-                <div className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Finished Products</p>
+                <div className="space-y-2">
                   {lowProducts.map(p => (
-                  <div key={p.id} className="flex flex-col sm:flex-row sm:items-center justify-between text-sm gap-1">
+                    <div key={p.id} className="flex flex-col sm:flex-row sm:items-center justify-between text-sm gap-1">
                       <span className="font-medium">{p.name} ({p.bottle_size})</span>
                       <div className="flex items-center gap-2 text-xs sm:text-sm">
                         <span className="text-muted-foreground">Shop: {p.shop_stock} | Online: {p.online_shop_stock} | Prod: {p.production_stock}</span>
@@ -272,8 +280,8 @@ export default function Dashboard() {
             )}
             {lowMaterials.length > 0 && (
               <div>
-                <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase">Raw Materials</p>
-                <div className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Raw Materials</p>
+                <div className="space-y-2">
                   {lowMaterials.map(m => (
                     <div key={m.id} className="flex items-center justify-between text-sm">
                       <span className="font-medium">{m.name}</span>
@@ -292,20 +300,20 @@ export default function Dashboard() {
 
         {/* Product Stock */}
         <Card>
-          <CardHeader><CardTitle className="text-base">Product Stock</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Product Stock</CardTitle></CardHeader>
           <CardContent>
             {!products?.length ? (
               <p className="text-sm text-muted-foreground">No products yet.</p>
             ) : (
               <Table>
                 <TableHeader>
-                   <TableRow>
-                     <TableHead>Product</TableHead>
-                     <TableHead>Production</TableHead>
-                     <TableHead>Shop</TableHead>
-                     <TableHead>Online</TableHead>
-                     <TableHead>Status</TableHead>
-                   </TableRow>
+                  <TableRow>
+                    <TableHead>Product</TableHead>
+                    <TableHead>Production</TableHead>
+                    <TableHead>Shop</TableHead>
+                    <TableHead>Online</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
                 </TableHeader>
                 <TableBody>
                   {products.map(p => (

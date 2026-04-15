@@ -49,18 +49,18 @@ export default function Login() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Reset Password</CardTitle>
+          <CardHeader className="text-center space-y-2">
+            <CardTitle className="text-xl font-semibold">Reset Password</CardTitle>
             <CardDescription>Enter your email to receive a reset link</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleForgotPassword} className="space-y-4">
-              <Input type="email" placeholder="Email" value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} required />
-              <Button type="submit" className="w-full" disabled={forgotLoading}>
+              <Input type="email" placeholder="Email" value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} required className="h-11" />
+              <Button type="submit" className="w-full h-11" disabled={forgotLoading}>
                 {forgotLoading ? "Sending..." : "Send Reset Link"}
               </Button>
             </form>
-            <Button variant="link" className="mt-2 w-full" onClick={() => setShowForgot(false)}>
+            <Button variant="link" className="mt-3 w-full text-muted-foreground" onClick={() => setShowForgot(false)}>
               Back to Sign In
             </Button>
           </CardContent>
@@ -72,19 +72,22 @@ export default function Login() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Al-Khair Drinks & Snacks</CardTitle>
+        <CardHeader className="text-center space-y-2 pb-6">
+          <div className="mx-auto w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-2">
+            <span className="text-primary font-bold text-lg">AK</span>
+          </div>
+          <CardTitle className="text-xl font-semibold">Al-Khair Drinks & Snacks</CardTitle>
           <CardDescription>Sign in to manage operations</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <Input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            <Input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required className="h-11" />
+            <Input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} className="h-11" />
+            <Button type="submit" className="w-full h-11" disabled={loading}>
               {loading ? "Please wait..." : "Sign In"}
             </Button>
           </form>
-          <Button variant="link" className="mt-2 w-full" onClick={() => setShowForgot(true)}>
+          <Button variant="link" className="mt-3 w-full text-muted-foreground" onClick={() => setShowForgot(true)}>
             Forgot password?
           </Button>
         </CardContent>
