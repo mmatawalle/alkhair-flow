@@ -13,6 +13,7 @@ import { useSortableTable } from "@/hooks/use-sortable-table";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import { logAudit } from "@/lib/audit";
+import BulkRawMaterialForm from "@/components/BulkRawMaterialForm";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
