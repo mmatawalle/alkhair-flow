@@ -1,51 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Al-Khair Drinks & Snacks — Premium gold & brown palette */
-
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
-
 @layer base {
   :root {
-    --background: 36 33% 96%;
-    --foreground: 25 30% 14%;
+    --background: 42 48% 96%;
+    --foreground: 30 18% 12%;
 
     --card: 0 0% 100%;
-    --card-foreground: 25 30% 14%;
+    --card-foreground: 30 18% 12%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 25 30% 14%;
+    --popover-foreground: 30 18% 12%;
 
-    --primary: 40 55% 55%;
-    --primary-foreground: 25 40% 12%;
+    --primary: 42 72% 58%;
+    --primary-foreground: 30 24% 12%;
 
-    --secondary: 36 20% 91%;
-    --secondary-foreground: 25 25% 20%;
+    --secondary: 42 45% 92%;
+    --secondary-foreground: 30 18% 18%;
 
-    --muted: 36 18% 93%;
-    --muted-foreground: 25 12% 48%;
+    --muted: 42 36% 94%;
+    --muted-foreground: 30 10% 43%;
 
-    --accent: 25 45% 25%;
-    --accent-foreground: 36 33% 96%;
+    --accent: 30 18% 16%;
+    --accent-foreground: 42 48% 96%;
 
     --destructive: 0 65% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 36 18% 88%;
-    --input: 36 18% 88%;
-    --ring: 40 55% 55%;
+    --border: 39 28% 86%;
+    --input: 39 28% 86%;
+    --ring: 42 72% 58%;
 
-    --radius: 0.75rem;
+    --radius: 0.5rem;
 
-    --sidebar-background: 25 35% 12%;
-    --sidebar-foreground: 36 25% 85%;
-    --sidebar-primary: 40 55% 55%;
-    --sidebar-primary-foreground: 25 40% 12%;
-    --sidebar-accent: 25 30% 18%;
-    --sidebar-accent-foreground: 36 25% 92%;
-    --sidebar-border: 25 25% 20%;
-    --sidebar-ring: 40 55% 55%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 30 18% 18%;
+    --sidebar-primary: 42 72% 58%;
+    --sidebar-primary-foreground: 30 24% 12%;
+    --sidebar-accent: 42 45% 94%;
+    --sidebar-accent-foreground: 30 18% 14%;
+    --sidebar-border: 39 28% 88%;
+    --sidebar-ring: 42 72% 58%;
 
     --success: 145 55% 42%;
     --warning: 40 85% 50%;
@@ -53,50 +51,48 @@
   }
 
   .dark {
-    --background: 25 25% 7%;
-    --foreground: 36 25% 92%;
+    --background: 30 20% 8%;
+    --foreground: 42 28% 94%;
 
-    --card: 25 20% 10%;
-    --card-foreground: 36 25% 92%;
+    --card: 30 18% 11%;
+    --card-foreground: 42 28% 94%;
 
-    --popover: 25 20% 10%;
-    --popover-foreground: 25 30% 14%;
+    --popover: 30 18% 11%;
+    --popover-foreground: 42 28% 94%;
 
-    --primary: 40 50% 50%;
-    --primary-foreground: 25 40% 10%;
+    --primary: 42 68% 58%;
+    --primary-foreground: 30 24% 12%;
 
-    --secondary: 25 15% 15%;
-    --secondary-foreground: 36 20% 85%;
+    --secondary: 30 14% 17%;
+    --secondary-foreground: 42 28% 90%;
 
-    --muted: 25 15% 15%;
-    --muted-foreground: 25 10% 55%;
+    --muted: 30 14% 17%;
+    --muted-foreground: 42 12% 62%;
 
-    --accent: 40 45% 40%;
+    --accent: 42 45% 40%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 55% 40%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 25 15% 18%;
-    --input: 25 15% 18%;
-    --ring: 40 50% 50%;
+    --border: 30 13% 21%;
+    --input: 30 13% 21%;
+    --ring: 42 68% 58%;
 
-    --sidebar-background: 25 25% 7%;
-    --sidebar-foreground: 36 20% 85%;
-    --sidebar-primary: 40 50% 50%;
-    --sidebar-primary-foreground: 25 40% 10%;
-    --sidebar-accent: 25 15% 12%;
-    --sidebar-accent-foreground: 36 20% 92%;
-    --sidebar-border: 25 15% 15%;
-    --sidebar-ring: 40 50% 50%;
+    --sidebar-background: 30 18% 10%;
+    --sidebar-foreground: 42 28% 90%;
+    --sidebar-primary: 42 68% 58%;
+    --sidebar-primary-foreground: 30 24% 12%;
+    --sidebar-accent: 30 14% 16%;
+    --sidebar-accent-foreground: 42 28% 96%;
+    --sidebar-border: 30 13% 20%;
+    --sidebar-ring: 42 68% 58%;
 
     --success: 145 45% 38%;
     --warning: 40 75% 45%;
     --danger: 0 55% 42%;
   }
-}
 
-@layer base {
   * {
     @apply border-border;
   }
@@ -108,51 +104,51 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
     font-weight: 600;
-    letter-spacing: -0.01em;
+    letter-spacing: 0;
   }
 }
 
-/* Mobile-first component classes */
 @layer components {
   .card-premium {
-    @apply bg-card rounded-xl border border-border/60;
-    box-shadow: 0 1px 3px 0 hsl(25 30% 14% / 0.04), 0 1px 2px -1px hsl(25 30% 14% / 0.04);
+    @apply rounded-lg border border-border bg-card;
+    box-shadow: 0 12px 30px -24px hsl(30 18% 12% / 0.25);
   }
 
-  /* Page wrapper — mobile-first spacing */
   .page-container {
-    @apply space-y-4 md:space-y-6 max-w-7xl mx-auto;
+    @apply mx-auto max-w-7xl space-y-5 md:space-y-6;
   }
 
-  /* Page header — stacks on mobile */
   .page-header {
     @apply flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between;
   }
 
   .page-title {
-    @apply text-lg sm:text-xl md:text-2xl font-semibold text-foreground tracking-tight;
+    @apply text-xl font-semibold text-foreground sm:text-2xl;
   }
 
   .page-subtitle {
-    @apply text-xs sm:text-sm text-muted-foreground mt-0.5;
+    @apply mt-0.5 text-xs text-muted-foreground sm:text-sm;
   }
 
-  /* Filter bar — wraps on mobile */
   .filter-bar {
-    @apply flex flex-wrap items-end gap-2 sm:gap-3;
+    @apply flex flex-wrap items-end gap-2 rounded-lg border border-border bg-card/95 p-3 sm:gap-3;
   }
 
-  /* Mobile card list — shown on mobile, hidden on md+ */
   .mobile-card-list {
     @apply flex flex-col gap-3 md:hidden;
   }
 
   .mobile-card-item {
-    @apply bg-card rounded-xl border border-border/50 p-4 space-y-2;
-    box-shadow: 0 1px 2px 0 hsl(25 30% 14% / 0.03);
+    @apply space-y-2 rounded-lg border border-border bg-card p-4;
+    box-shadow: 0 12px 30px -24px hsl(30 18% 12% / 0.25);
   }
 
   .mobile-card-row {
@@ -176,20 +172,18 @@
   }
 
   .mobile-card-actions {
-    @apply flex items-center gap-1 pt-2 border-t border-border/30;
+    @apply flex items-center gap-1 border-t border-border/60 pt-2;
   }
 
-  /* Desktop table — hidden on mobile, shown on md+ */
   .desktop-table {
     @apply hidden md:block;
   }
 }
 
-/* Scrollbar styling */
 @layer utilities {
   .scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: hsl(36 18% 88%) transparent;
+    scrollbar-color: hsl(39 28% 82%) transparent;
   }
 
   .scrollbar-thin::-webkit-scrollbar {
@@ -202,7 +196,7 @@
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: hsl(36 18% 85%);
+    background: hsl(39 28% 82%);
     border-radius: 3px;
   }
 }
