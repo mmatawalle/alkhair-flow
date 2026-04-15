@@ -2,95 +2,97 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Al-Khair Drinks & Snacks — fresh, vibrant business dashboard */
+/* Al-Khair Drinks & Snacks — Premium gold & brown palette */
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
 
 @layer base {
   :root {
-    --background: 145 20% 98%;
-    --foreground: 200 25% 10%;
+    --background: 36 33% 96%;
+    --foreground: 25 30% 14%;
 
     --card: 0 0% 100%;
-    --card-foreground: 200 25% 10%;
+    --card-foreground: 25 30% 14%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 200 25% 10%;
+    --popover-foreground: 25 30% 14%;
 
-    --primary: 160 60% 38%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 40 55% 55%;
+    --primary-foreground: 25 40% 12%;
 
-    --secondary: 145 25% 93%;
-    --secondary-foreground: 200 25% 15%;
+    --secondary: 36 20% 91%;
+    --secondary-foreground: 25 25% 20%;
 
-    --muted: 145 15% 94%;
-    --muted-foreground: 200 10% 45%;
+    --muted: 36 18% 93%;
+    --muted-foreground: 25 12% 48%;
 
-    --accent: 35 90% 55%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 25 45% 25%;
+    --accent-foreground: 36 33% 96%;
 
-    --destructive: 0 72% 51%;
+    --destructive: 0 65% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 160 15% 88%;
-    --input: 160 15% 88%;
-    --ring: 160 60% 38%;
+    --border: 36 18% 88%;
+    --input: 36 18% 88%;
+    --ring: 40 55% 55%;
 
-    --radius: 0.625rem;
+    --radius: 0.75rem;
 
-    --sidebar-background: 160 30% 15%;
-    --sidebar-foreground: 145 15% 90%;
-    --sidebar-primary: 35 90% 55%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 160 25% 22%;
-    --sidebar-accent-foreground: 145 15% 95%;
-    --sidebar-border: 160 20% 25%;
-    --sidebar-ring: 35 90% 55%;
+    --sidebar-background: 25 35% 12%;
+    --sidebar-foreground: 36 25% 85%;
+    --sidebar-primary: 40 55% 55%;
+    --sidebar-primary-foreground: 25 40% 12%;
+    --sidebar-accent: 25 30% 18%;
+    --sidebar-accent-foreground: 36 25% 92%;
+    --sidebar-border: 25 25% 20%;
+    --sidebar-ring: 40 55% 55%;
 
     --success: 145 55% 42%;
     --warning: 40 85% 50%;
-    --danger: 0 72% 51%;
+    --danger: 0 65% 51%;
   }
 
   .dark {
-    --background: 200 25% 7%;
-    --foreground: 145 15% 95%;
+    --background: 25 25% 7%;
+    --foreground: 36 25% 92%;
 
-    --card: 200 20% 10%;
-    --card-foreground: 145 15% 95%;
+    --card: 25 20% 10%;
+    --card-foreground: 36 25% 92%;
 
-    --popover: 200 20% 10%;
-    --popover-foreground: 145 15% 95%;
+    --popover: 25 20% 10%;
+    --popover-foreground: 36 25% 92%;
 
-    --primary: 160 55% 45%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 40 50% 50%;
+    --primary-foreground: 25 40% 10%;
 
-    --secondary: 200 15% 15%;
-    --secondary-foreground: 145 15% 90%;
+    --secondary: 25 15% 15%;
+    --secondary-foreground: 36 20% 85%;
 
-    --muted: 200 15% 15%;
-    --muted-foreground: 200 10% 60%;
+    --muted: 25 15% 15%;
+    --muted-foreground: 25 10% 55%;
 
-    --accent: 35 85% 50%;
+    --accent: 40 45% 40%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 62% 35%;
+    --destructive: 0 55% 40%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 200 15% 18%;
-    --input: 200 15% 18%;
-    --ring: 160 55% 45%;
+    --border: 25 15% 18%;
+    --input: 25 15% 18%;
+    --ring: 40 50% 50%;
 
-    --sidebar-background: 200 25% 7%;
-    --sidebar-foreground: 145 15% 90%;
-    --sidebar-primary: 35 85% 50%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 200 15% 12%;
-    --sidebar-accent-foreground: 145 15% 95%;
-    --sidebar-border: 200 15% 15%;
-    --sidebar-ring: 35 85% 50%;
+    --sidebar-background: 25 25% 7%;
+    --sidebar-foreground: 36 20% 85%;
+    --sidebar-primary: 40 50% 50%;
+    --sidebar-primary-foreground: 25 40% 10%;
+    --sidebar-accent: 25 15% 12%;
+    --sidebar-accent-foreground: 36 20% 92%;
+    --sidebar-border: 25 15% 15%;
+    --sidebar-ring: 40 50% 50%;
 
-    --success: 145 50% 40%;
-    --warning: 40 80% 48%;
-    --danger: 0 65% 45%;
+    --success: 145 45% 38%;
+    --warning: 40 75% 45%;
+    --danger: 0 55% 42%;
   }
 }
 
@@ -101,5 +103,19 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    font-weight: 600;
+  }
+}
+
+/* Premium card shadows */
+@layer components {
+  .card-premium {
+    @apply bg-card rounded-xl border border-border/60;
+    box-shadow: 0 1px 3px 0 hsl(25 30% 14% / 0.04), 0 1px 2px -1px hsl(25 30% 14% / 0.04);
   }
 }
