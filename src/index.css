@@ -104,18 +104,71 @@
   body {
     @apply bg-background text-foreground;
     font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
     font-weight: 600;
+    letter-spacing: -0.01em;
   }
 }
 
-/* Premium card shadows */
+/* Premium card shadows & global component refinements */
 @layer components {
   .card-premium {
     @apply bg-card rounded-xl border border-border/60;
     box-shadow: 0 1px 3px 0 hsl(25 30% 14% / 0.04), 0 1px 2px -1px hsl(25 30% 14% / 0.04);
+  }
+
+  /* Page wrapper for consistent spacing across all pages */
+  .page-container {
+    @apply max-w-7xl mx-auto space-y-6;
+  }
+
+  /* Page header with title + actions */
+  .page-header {
+    @apply flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3;
+  }
+
+  .page-title {
+    @apply text-xl md:text-2xl font-semibold text-foreground tracking-tight;
+  }
+
+  .page-subtitle {
+    @apply text-sm text-muted-foreground mt-0.5;
+  }
+
+  /* Section spacing */
+  .section-gap {
+    @apply space-y-6;
+  }
+
+  /* Filter bar */
+  .filter-bar {
+    @apply flex flex-wrap items-end gap-3;
+  }
+}
+
+/* Scrollbar styling */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(36 18% 88%) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(36 18% 85%);
+    border-radius: 3px;
   }
 }
