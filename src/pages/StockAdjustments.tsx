@@ -329,6 +329,13 @@ export default function StockAdjustments() {
               </div>
             )}
 
+            {itemType === "raw_material" && (
+              <div>
+                <label className="text-sm text-muted-foreground">Location</label>
+                <Input value="Production" disabled className="bg-muted" />
+              </div>
+            )}
+
             {selectedItem && (
               <p className="text-sm text-muted-foreground">Current stock: <strong>{oldQty}</strong></p>
             )}
