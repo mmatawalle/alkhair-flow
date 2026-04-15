@@ -9,8 +9,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 
 import { logAudit } from "@/lib/audit";
 import { SortableTableHead } from "@/components/SortableTableHead";
@@ -24,12 +28,13 @@ export default function StockAdjustments() {
   const [itemType, setItemType] = useState<"product" | "raw_material">("product");
   const [itemId, setItemId] = useState("");
   const [location, setLocation] = useState("shop");
-  const [newQty, setNewQty] = useState(0);
+  const [newQty, setNewQty] = useState<number | "">(0);
   const [reason, setReason] = useState("correction");
   const [affectCost, setAffectCost] = useState(false);
   const [adjustedBy, setAdjustedBy] = useState("");
   const [adjustDate, setAdjustDate] = useState(new Date().toISOString().split("T")[0]);
   const [note, setNote] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -73,7 +78,8 @@ export default function StockAdjustments() {
     return Number(p.shop_stock);
   })();
 
-  const adjustmentAmount = newQty - oldQty;
+  const numericNewQty = newQty === "" ? 0 : newQty;
+  const adjustmentAmount = numericNewQty - oldQty;
 
   const getItemName = (adj: any) => {
     if (adj.item_type === "product") {
@@ -99,7 +105,7 @@ export default function StockAdjustments() {
 
       await supabase.from("stock_adjustments").insert({
         item_type: itemType, item_id: itemId, location,
-        old_quantity: oldQty, new_quantity: newQty,
+        old_quantity: oldQty, new_quantity: numericNewQty,
         adjustment_amount: adjustmentAmount, reason,
         affect_average_cost: affectCost,
         adjusted_by: adjustedBy, adjustment_date: adjustDate,
@@ -109,12 +115,12 @@ export default function StockAdjustments() {
       // Apply stock change
       if (itemType === "product") {
         const updateData: Record<string, number> = {};
-        if (location === "production") updateData.production_stock = newQty;
-        else if (location === "online_shop") updateData.online_shop_stock = newQty;
-        else updateData.shop_stock = newQty;
+        if (location === "production") updateData.production_stock = numericNewQty;
+        else if (location === "online_shop") updateData.online_shop_stock = numericNewQty;
+        else updateData.shop_stock = numericNewQty;
         await supabase.from("products").update(updateData as any).eq("id", itemId);
       } else {
-        await supabase.from("raw_materials").update({ current_stock: newQty }).eq("id", itemId);
+        await supabase.from("raw_materials").update({ current_stock: numericNewQty }).eq("id", itemId);
       }
 
       await logAudit({
@@ -122,7 +128,7 @@ export default function StockAdjustments() {
         module: "stock_adjustment",
         record_id: itemId,
         old_values: { quantity: oldQty },
-        new_values: { quantity: newQty, reason, location },
+        new_values: { quantity: numericNewQty, reason, location },
         note: `${adjustedBy}: ${reason.replace(/_/g, " ")}`,
       });
     },
@@ -134,6 +140,54 @@ export default function StockAdjustments() {
       toast({ title: "Stock adjusted ✓" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (adj: any) => {
+      // Reverse the stock change
+      const reverseAmount = -Number(adj.adjustment_amount);
+      if (adj.item_type === "product") {
+        const { data: product } = await supabase.from("products").select("*").eq("id", adj.item_id).single();
+        if (product) {
+          const updateData: Record<string, number> = {};
+          const loc = adj.location as string;
+          if (loc === "production") updateData.production_stock = Number(product.production_stock) + reverseAmount;
+          else if (loc === "online_shop") updateData.online_shop_stock = Number(product.online_shop_stock) + reverseAmount;
+          else updateData.shop_stock = Number(product.shop_stock) + reverseAmount;
+
+          // Prevent negative stock
+          const newVal = Object.values(updateData)[0];
+          if (newVal < 0) throw new Error("Cannot delete: would result in negative stock");
+
+          await supabase.from("products").update(updateData as any).eq("id", adj.item_id);
+        }
+      } else {
+        const { data: mat } = await supabase.from("raw_materials").select("*").eq("id", adj.item_id).single();
+        if (mat) {
+          const newStock = Number(mat.current_stock) + reverseAmount;
+          if (newStock < 0) throw new Error("Cannot delete: would result in negative stock");
+          await supabase.from("raw_materials").update({ current_stock: newStock }).eq("id", adj.item_id);
+        }
+      }
+
+      await supabase.from("stock_adjustments").delete().eq("id", adj.id);
+
+      await logAudit({
+        action_type: "delete",
+        module: "stock_adjustment",
+        record_id: adj.id,
+        old_values: { item: adj.item_id, old_quantity: adj.old_quantity, new_quantity: adj.new_quantity, reason: adj.reason },
+        note: `Deleted adjustment & reversed stock by ${reverseAmount}`,
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["stock_adjustments"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["raw_materials"] });
+      setDeleteTarget(null);
+      toast({ title: "Adjustment deleted & stock reversed ✓" });
+    },
+    onError: (e: any) => { setDeleteTarget(null); toast({ title: "Error", description: e.message, variant: "destructive" }); },
   });
 
   return (
@@ -157,13 +211,14 @@ export default function StockAdjustments() {
                   <SortableTableHead label="Change" sortKey="adjustment_amount" sort={sort} onToggle={toggleSort} />
                   <TableHead>Reason</TableHead>
                   <TableHead>By</TableHead>
+                  <TableHead className="w-10"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={8} className="text-center">Loading...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center">Loading...</TableCell></TableRow>
                 ) : sorted.length === 0 ? (
-                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">No adjustments yet</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">No adjustments yet</TableCell></TableRow>
                 ) : sorted.map((adj: any) => (
                   <TableRow key={adj.id}>
                     <TableCell>{adj.adjustment_date}</TableCell>
@@ -176,6 +231,11 @@ export default function StockAdjustments() {
                     </TableCell>
                     <TableCell className="capitalize text-sm">{adj.reason?.replace(/_/g, " ")}</TableCell>
                     <TableCell>{adj.adjusted_by || "—"}</TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteTarget(adj)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -184,6 +244,7 @@ export default function StockAdjustments() {
         </CardContent>
       </Card>
 
+      {/* New Adjustment Dialog */}
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Stock Adjustment</DialogTitle></DialogHeader>
@@ -230,7 +291,14 @@ export default function StockAdjustments() {
 
             <div>
               <label className="text-sm text-muted-foreground">New Quantity</label>
-              <Input type="number" step="any" min={0} value={newQty || ""} onChange={e => setNewQty(Number(e.target.value))} required />
+              <Input
+                type="number"
+                step="any"
+                min={0}
+                value={newQty}
+                onChange={e => setNewQty(e.target.value === "" ? "" : Number(e.target.value))}
+                required
+              />
             </div>
 
             {selectedItem && (
@@ -267,6 +335,27 @@ export default function StockAdjustments() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(v) => { if (!v) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Stock Adjustment?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will reverse the stock change ({deleteTarget?.adjustment_amount >= 0 ? "+" : ""}{deleteTarget?.adjustment_amount}) and delete this record. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget)}
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Delete & Reverse"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
