@@ -60,7 +60,7 @@
     --card-foreground: 36 25% 92%;
 
     --popover: 25 20% 10%;
-    --popover-foreground: 36 25% 92%;
+    --popover-foreground: 25 30% 14%;
 
     --primary: 40 50% 50%;
     --primary-foreground: 25 40% 10%;
@@ -115,39 +115,73 @@
   }
 }
 
-/* Premium card shadows & global component refinements */
+/* Mobile-first component classes */
 @layer components {
   .card-premium {
     @apply bg-card rounded-xl border border-border/60;
     box-shadow: 0 1px 3px 0 hsl(25 30% 14% / 0.04), 0 1px 2px -1px hsl(25 30% 14% / 0.04);
   }
 
-  /* Page wrapper for consistent spacing across all pages */
+  /* Page wrapper — mobile-first spacing */
   .page-container {
-    @apply max-w-7xl mx-auto space-y-6;
+    @apply space-y-4 md:space-y-6 max-w-7xl mx-auto;
   }
 
-  /* Page header with title + actions */
+  /* Page header — stacks on mobile */
   .page-header {
-    @apply flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3;
+    @apply flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between;
   }
 
   .page-title {
-    @apply text-xl md:text-2xl font-semibold text-foreground tracking-tight;
+    @apply text-lg sm:text-xl md:text-2xl font-semibold text-foreground tracking-tight;
   }
 
   .page-subtitle {
-    @apply text-sm text-muted-foreground mt-0.5;
+    @apply text-xs sm:text-sm text-muted-foreground mt-0.5;
   }
 
-  /* Section spacing */
-  .section-gap {
-    @apply space-y-6;
-  }
-
-  /* Filter bar */
+  /* Filter bar — wraps on mobile */
   .filter-bar {
-    @apply flex flex-wrap items-end gap-3;
+    @apply flex flex-wrap items-end gap-2 sm:gap-3;
+  }
+
+  /* Mobile card list — shown on mobile, hidden on md+ */
+  .mobile-card-list {
+    @apply flex flex-col gap-3 md:hidden;
+  }
+
+  .mobile-card-item {
+    @apply bg-card rounded-xl border border-border/50 p-4 space-y-2;
+    box-shadow: 0 1px 2px 0 hsl(25 30% 14% / 0.03);
+  }
+
+  .mobile-card-row {
+    @apply flex items-center justify-between text-sm;
+  }
+
+  .mobile-card-label {
+    @apply text-xs text-muted-foreground;
+  }
+
+  .mobile-card-value {
+    @apply text-sm font-medium text-foreground;
+  }
+
+  .mobile-card-header {
+    @apply flex items-start justify-between gap-2;
+  }
+
+  .mobile-card-title {
+    @apply text-sm font-semibold text-foreground;
+  }
+
+  .mobile-card-actions {
+    @apply flex items-center gap-1 pt-2 border-t border-border/30;
+  }
+
+  /* Desktop table — hidden on mobile, shown on md+ */
+  .desktop-table {
+    @apply hidden md:block;
   }
 }
 
