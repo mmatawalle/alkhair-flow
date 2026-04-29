@@ -164,9 +164,16 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Missing auth" }, 401);
     }
 
-    const token = authHeader.replace("Bearer ", "");
-    const authClient = createClient(supabaseUrl, anonKey);
-    const { data: userData, error: userError } = await authClient.auth.getUser(token);
+    const authClient = createClient(supabaseUrl, anonKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+      global: {
+        headers: { Authorization: authHeader },
+      },
+    });
+    const { data: userData, error: userError } = await authClient.auth.getUser();
     if (userError || !userData?.user?.id) {
       console.error("Auth validation failed:", userError);
       return jsonResponse({ error: "Not authenticated" }, 401);
