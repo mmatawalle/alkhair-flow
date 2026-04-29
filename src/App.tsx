@@ -23,6 +23,7 @@ import StockAdjustments from "./pages/StockAdjustments";
 import Vendors from "./pages/Vendors";
 import VendorConsignments from "./pages/VendorConsignments";
 import UserManagement from "./pages/UserManagement";
+import AIDrafts from "./pages/AIDrafts";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -57,6 +58,7 @@ function ProtectedRoutes() {
         <Route path="/stock-adjustments" element={<StockAdjustments />} />
         <Route path="/vendors" element={<Vendors />} />
         <Route path="/vendor-ops" element={<VendorConsignments />} />
+        <Route path="/ai-drafts" element={<AIDrafts />} />
         <Route path="/audit-log" element={<AuditLog />} />
         {isSuperAdmin && <Route path="/users" element={<UserManagement />} />}
         <Route path="*" element={<NotFound />} />

@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Package, ShoppingCart, Factory, ArrowRightLeft,
   DollarSign, Receipt, Gift, Beaker, LogOut, Repeat, TrendingUp,
-  Scale, FileText, Store, Truck, Users
+  Scale, FileText, Store, Truck, Users, Sparkles
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -14,7 +14,6 @@ import {
 import { Button } from "@/components/ui/button";
 
 const logoSrc = `${import.meta.env.BASE_URL}brand-logo.png`;
-
 const sections = [
   {
     label: "Overview",
@@ -58,12 +57,12 @@ const sections = [
   {
     label: "Admin",
     items: [
+      { title: "AI Drafts", url: "/ai-drafts", icon: Sparkles },
       { title: "Audit Log", url: "/audit-log", icon: FileText },
     ],
   },
 ];
-
-const navItems = sections.flatMap(section => section.items);
+const navItems = sections.flatMap((section) => section.items);
 
 export function AppSidebar() {
   const { state } = useSidebar();

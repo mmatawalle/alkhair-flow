@@ -10,7 +10,7 @@ import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { useSortableTable } from "@/hooks/use-sortable-table";
 
-const MODULES = ["all", "sales", "purchases", "production", "transfers", "expenses", "gifts", "internal", "stock_adjustment", "products", "raw_materials", "vendors"];
+const MODULES = ["all", "sales", "purchases", "production", "transfers", "expenses", "gifts", "internal", "stock_adjustment", "products", "raw_materials", "vendors", "ai_drafts"];
 const ACTION_TYPES = ["all", "create", "edit", "delete", "void", "settle", "stock_adjustment"];
 
 export default function AuditLog() {

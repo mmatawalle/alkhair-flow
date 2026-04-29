@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_drafts: {
+        Row: {
+          confidence: number
+          created_at: string
+          created_by: string
+          draft_type: string
+          extracted_data: Json
+          id: string
+          raw_input: string
+          source_type: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          confidence?: number
+          created_at?: string
+          created_by?: string
+          draft_type: string
+          extracted_data?: Json
+          id?: string
+          raw_input: string
+          source_type: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          created_by?: string
+          draft_type?: string
+          extracted_data?: Json
+          id?: string
+          raw_input?: string
+          source_type?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       audit_log: {
         Row: {
           action_type: string
