@@ -166,12 +166,12 @@ Deno.serve(async (req) => {
 
     const token = authHeader.replace("Bearer ", "");
     const authClient = createClient(supabaseUrl, anonKey);
-    const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims?.sub) {
-      console.error("Auth validation failed:", claimsError);
+    const { data: userData, error: userError } = await authClient.auth.getUser(token);
+    if (userError || !userData?.user?.id) {
+      console.error("Auth validation failed:", userError);
       return jsonResponse({ error: "Not authenticated" }, 401);
     }
-    const user = { id: claimsData.claims.sub as string };
+    const user = userData.user;
 
     const openai = new OpenAI({ apiKey });
 
