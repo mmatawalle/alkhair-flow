@@ -1,5 +1,5 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import OpenAI from "https://esm.sh/openai@4.91.0";
+import { createRemoteJWKSet, jwtVerify } from "https://esm.sh/jose@5.9.6";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -164,21 +164,18 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Missing auth" }, 401);
     }
 
-    const authClient = createClient(supabaseUrl, anonKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-      global: {
-        headers: { Authorization: authHeader },
-      },
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+    const jwks = createRemoteJWKSet(new URL(`${supabaseUrl}/auth/v1/.well-known/jwks.json`));
+    const { payload } = await jwtVerify(token, jwks, {
+      issuer: `${supabaseUrl}/auth/v1`,
+      audience: "authenticated",
+    }).catch((error) => {
+      console.error("Auth validation failed:", error);
+      return { payload: null };
     });
-    const { data: userData, error: userError } = await authClient.auth.getUser();
-    if (userError || !userData?.user?.id) {
-      console.error("Auth validation failed:", userError);
+    if (!payload?.sub) {
       return jsonResponse({ error: "Not authenticated" }, 401);
     }
-    const user = userData.user;
 
     const openai = new OpenAI({ apiKey });
 
