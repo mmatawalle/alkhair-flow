@@ -152,10 +152,9 @@ Deno.serve(async (req) => {
   try {
     const apiKey = Deno.env.get("OPENAI_API_KEY");
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
     // TEMP debug check (do not log the key)
     if (!apiKey) throw new Error("OPENAI_API_KEY not set");
-    if (!supabaseUrl || !anonKey) {
+    if (!supabaseUrl) {
       return jsonResponse({ error: "Missing Supabase environment" }, 500);
     }
 
