@@ -463,16 +463,20 @@ export default function AIDrafts() {
                 </div>
               </div>
 
-              {"validationErrors" in currentDraft && currentDraft.validationErrors?.length > 0 && (
-                <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3">
-                  <p className="text-sm font-medium text-destructive">Needs review before posting</p>
-                  <ul className="mt-2 space-y-1 text-sm text-destructive">
-                    {currentDraft.validationErrors.map((error: string) => (
-                      <li key={error}>- {error}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+              {(() => {
+                const errs = (currentDraft as any).validationErrors as string[] | undefined;
+                if (!errs || errs.length === 0) return null;
+                return (
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3">
+                    <p className="text-sm font-medium text-destructive">Needs review before posting</p>
+                    <ul className="mt-2 space-y-1 text-sm text-destructive">
+                      {errs.map((error: string) => (
+                        <li key={error}>- {error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })()}
 
               <div className="space-y-2">
                 <Label>Extracted draft data</Label>
