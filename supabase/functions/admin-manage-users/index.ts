@@ -55,6 +55,29 @@ Deno.serve(async (req) => {
     }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+    // Fire-and-forget Resend email. Never blocks the admin action.
+    const sendViaResend = async (to: string, subject: string, html: string) => {
+      try {
+        const apiKey = Deno.env.get("RESEND_API_KEY");
+        if (!apiKey || !to) return;
+        const from = Deno.env.get("RESEND_FROM") || "onboarding@resend.dev";
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ from, to: [to], subject, html }),
+        });
+      } catch (e) {
+        console.error("Resend send failed (non-fatal):", e);
+      }
+    };
+
+    const esc = (s: string) =>
+      s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
     const body = await req.json();
     const { action } = body;
 
@@ -85,6 +108,20 @@ Deno.serve(async (req) => {
 
       // Assign role
       await adminClient.from("user_roles").insert({ user_id: newUser.user.id, role });
+
+      // Notify the new user via Resend (non-blocking for the response).
+      await sendViaResend(
+        email,
+        "Your AL-KHAIR account is ready",
+        `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f6f6f6;padding:24px;">` +
+          `<div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:8px;padding:24px;">` +
+          `<h2>Welcome, ${esc(full_name)}</h2>` +
+          `<p>Your account (<strong>${esc(email)}</strong>) has been created with role <strong>${esc(role)}</strong>.</p>` +
+          `<p>Sign in with the temporary password your administrator gave you, then ask them to rotate it if needed.</p>` +
+          `<hr style="margin:24px 0;border:none;border-top:1px solid #eee;" />` +
+          `<p style="font-size:12px;color:#888;">AL-KHAIR DRINKS &amp; SNACKS</p>` +
+          `</div></body></html>`,
+      );
 
       return new Response(JSON.stringify({ success: true, user_id: newUser.user.id }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -162,6 +199,26 @@ Deno.serve(async (req) => {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
+      }
+
+      // Notify the user via Resend that their password was changed.
+      try {
+        const { data: target } = await adminClient.auth.admin.getUserById(user_id);
+        if (target?.user?.email) {
+          await sendViaResend(
+            target.user.email,
+            "Your AL-KHAIR password was changed",
+            `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f6f6f6;padding:24px;">` +
+              `<div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:8px;padding:24px;">` +
+              `<h2>Password changed</h2>` +
+              `<p>An administrator has reset your AL-KHAIR password. If this wasn't expected, contact your administrator immediately.</p>` +
+              `<hr style="margin:24px 0;border:none;border-top:1px solid #eee;" />` +
+              `<p style="font-size:12px;color:#888;">AL-KHAIR DRINKS &amp; SNACKS</p>` +
+              `</div></body></html>`,
+          );
+        }
+      } catch (e) {
+        console.error("Password-change notify failed (non-fatal):", e);
       }
 
       return new Response(JSON.stringify({ success: true }), {

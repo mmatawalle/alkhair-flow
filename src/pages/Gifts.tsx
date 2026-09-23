@@ -10,8 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Pencil, Download } from "lucide-react";
-import { fmt } from "@/lib/stock-helpers";
+import { Plus, Trash2, Pencil, Download, Gift } from "lucide-react";
+import { MobileList, MobileListItem } from "@/components/MobileList";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { useSortableTable } from "@/hooks/use-sortable-table";
@@ -21,6 +21,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { branchCodeToLocation, fetchBranches, fetchStockMap, getBranchQty, setBranchQty, type Branch } from "@/lib/inventory";
 
 const REASONS = ["family", "friend", "promo", "VIP", "house_use"];
 
@@ -30,7 +31,7 @@ export default function Gifts() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [productId, setProductId] = useState("");
-  const [sourceLocation, setSourceLocation] = useState("shop");
+  const [branchId, setBranchId] = useState("");
   const [qty, setQty] = useState(0);
   const [giftDate, setGiftDate] = useState(new Date().toISOString().split("T")[0]);
   const [recipient, setRecipient] = useState("");
@@ -54,30 +55,40 @@ export default function Gifts() {
     },
   });
 
+  const { data: branches } = useQuery({ queryKey: ["branches"], queryFn: () => fetchBranches() });
+  const productIds = ((products as any[]) || []).map((p: any) => p.id);
+  const { data: stockMap } = useQuery({
+    queryKey: ["stock_levels", productIds.join(",")],
+    queryFn: () => fetchStockMap(productIds),
+    enabled: productIds.length > 0,
+  });
+
   const { data: gifts, isLoading } = useQuery({
     queryKey: ["gift_records"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("gift_records").select("*, products(name, bottle_size)").order("gift_date", { ascending: false });
+      const { data, error } = await supabase.from("gift_records").select("*, products(name, bottle_size), branches(name)").order("gift_date", { ascending: false });
       if (error) throw error;
       return data;
     },
   });
 
-  const selectedProduct = products?.find(p => p.id === productId);
-  const availableStock = selectedProduct
-    ? (sourceLocation === "production" ? Number(selectedProduct.production_stock) : Number(selectedProduct.shop_stock))
+  const selectedProduct = (products as any[])?.find((p: any) => p.id === productId) as any;
+  const selectedBranch = (branches || []).find((b) => b.id === branchId);
+  const branchName = (g: any) => (branches || []).find((b) => b.id === g.branch_id)?.name || (g.source_location ? String(g.source_location).replace("_", " ") : "—");
+  const availableStock = selectedProduct && branchId
+    ? getBranchQty(selectedProduct, stockMap || new Map(), (branches || []) as Branch[], productId, branchId)
     : 0;
 
   const resetForm = () => {
     setEditingId(null); setProductId(""); setQty(0); setRecipient(""); setNote("");
-    setSourceLocation("shop"); setReason("family");
+    setBranchId(""); setReason("family");
     setGiftDate(new Date().toISOString().split("T")[0]);
   };
 
   const openEdit = (g: any) => {
     setEditingId(g.id);
     setProductId(g.product_id);
-    setSourceLocation(g.source_location);
+    setBranchId(g.branch_id || "");
     setQty(g.quantity);
     setGiftDate(g.gift_date);
     setRecipient(g.recipient || "");
@@ -89,57 +100,66 @@ export default function Gifts() {
   const giftMutation = useMutation({
     mutationFn: async () => {
       if (!selectedProduct) throw new Error("Select a product");
+      if (!branchId) throw new Error("Select a branch");
       if (qty <= 0) throw new Error("Quantity must be > 0");
+      const branch = (branches || []).find((b) => b.id === branchId);
+      if (!branch) throw new Error("Branch not found");
 
       if (editingId) {
-        const oldGift = gifts?.find(g => g.id === editingId);
+        const oldGift = (gifts as any[])?.find((g: any) => g.id === editingId);
         if (!oldGift) throw new Error("Gift not found");
 
         // Restore old stock
-        const oldProduct = products?.find(p => p.id === oldGift.product_id);
-        if (oldProduct) {
-          const restoreData = oldGift.source_location === "production"
-            ? { production_stock: Number(oldProduct.production_stock) + Number(oldGift.quantity) }
-            : { shop_stock: Number(oldProduct.shop_stock) + Number(oldGift.quantity) };
-          await supabase.from("products").update(restoreData).eq("id", oldGift.product_id);
+        if (oldGift.branch_id) {
+          const oldBranch = (branches || []).find((b) => b.id === oldGift.branch_id);
+          if (oldBranch) {
+            const map = await fetchStockMap([oldGift.product_id]);
+            const cur = Number(map.get(oldGift.product_id)?.get(oldGift.branch_id) ?? 0);
+            await setBranchQty(oldGift.product_id, oldGift.branch_id, oldBranch.code, cur + Number(oldGift.quantity));
+          }
+        } else {
+          // Legacy row fallback
+          const oldProduct = (products as any[])?.find((p: any) => p.id === oldGift.product_id) as any;
+          if (oldProduct) {
+            const restoreData = oldGift.source_location === "production"
+              ? { production_stock: Number(oldProduct.production_stock) + Number(oldGift.quantity) }
+              : { shop_stock: Number(oldProduct.shop_stock) + Number(oldGift.quantity) };
+            await supabase.from("products").update(restoreData as any).eq("id", oldGift.product_id);
+          }
         }
 
-        // Re-fetch and check new stock
-        const { data: freshProduct } = await supabase.from("products").select("*").eq("id", productId).single();
-        if (!freshProduct) throw new Error("Product not found");
-        const newAvail = sourceLocation === "production" ? Number(freshProduct.production_stock) : Number(freshProduct.shop_stock);
-        if (qty > newAvail) throw new Error(`Not enough stock. Available: ${newAvail}`);
+        // Check new stock
+        const map2 = await fetchStockMap([productId]);
+        const newAvail = Number(map2.get(productId)?.get(branchId) ?? getBranchQty(selectedProduct, map2, (branches || []) as Branch[], productId, branchId));
+        if (qty > newAvail) throw new Error(`Not enough stock at ${branch.name}. Available: ${newAvail}`);
 
-        // Update gift record
         await supabase.from("gift_records").update({
-          product_id: productId, source_location: sourceLocation, quantity: qty,
+          product_id: productId, branch_id: branchId, source_location: branchCodeToLocation(branch.code), quantity: qty,
           gift_date: giftDate, recipient: recipient || null, reason_category: reason, note: note || null,
         }).eq("id", editingId);
 
-        // Deduct new stock
-        const deductData = sourceLocation === "production"
-          ? { production_stock: Number(freshProduct.production_stock) - qty }
-          : { shop_stock: Number(freshProduct.shop_stock) - qty };
-        await supabase.from("products").update(deductData).eq("id", productId);
+        const map3 = await fetchStockMap([productId]);
+        const cur2 = Number(map3.get(productId)?.get(branchId) ?? 0);
+        await setBranchQty(productId, branchId, branch.code, cur2 - qty);
       } else {
         if (qty > availableStock) throw new Error(`Not enough stock. Available: ${availableStock}`);
 
         await supabase.from("gift_records").insert({
-          product_id: productId, source_location: sourceLocation, quantity: qty,
+          product_id: productId, branch_id: branchId, source_location: branchCodeToLocation(branch.code), quantity: qty,
           gift_date: giftDate, recipient: recipient || null, reason_category: reason, note: note || null,
         });
 
-        const updateData = sourceLocation === "production"
-          ? { production_stock: Number(selectedProduct.production_stock) - qty }
-          : { shop_stock: Number(selectedProduct.shop_stock) - qty };
-        await supabase.from("products").update(updateData).eq("id", productId);
+        const map = await fetchStockMap([productId]);
+        const cur = Number(map.get(productId)?.get(branchId) ?? availableStock);
+        await setBranchQty(productId, branchId, branch.code, cur - qty);
       }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["gift_records"] });
       qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["stock_levels"] });
       setOpen(false); resetForm();
-      logAudit({ action_type: editingId ? "edit" : "create", module: "gifts", new_values: { product_id: productId, quantity: qty, recipient, reason } });
+      logAudit({ action_type: editingId ? "edit" : "create", module: "gifts", new_values: { product_id: productId, quantity: qty, recipient, reason, branch_id: branchId } });
       toast({ title: editingId ? "Gift updated ✓" : "Gift recorded ✓" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -147,14 +167,23 @@ export default function Gifts() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const gift = gifts?.find(g => g.id === id);
+      const gift = (gifts as any[])?.find((g: any) => g.id === id);
       if (!gift) throw new Error("Gift not found");
-      const product = products?.find(p => p.id === gift.product_id);
-      if (product) {
-        const updateData = gift.source_location === "production"
-          ? { production_stock: Number(product.production_stock) + Number(gift.quantity) }
-          : { shop_stock: Number(product.shop_stock) + Number(gift.quantity) };
-        await supabase.from("products").update(updateData).eq("id", gift.product_id);
+      if (gift.branch_id) {
+        const branch = (branches || []).find((b) => b.id === gift.branch_id);
+        if (branch) {
+          const map = await fetchStockMap([gift.product_id]);
+          const cur = Number(map.get(gift.product_id)?.get(gift.branch_id) ?? 0);
+          await setBranchQty(gift.product_id, gift.branch_id, branch.code, cur + Number(gift.quantity));
+        }
+      } else {
+        const product = (products as any[])?.find((p: any) => p.id === gift.product_id) as any;
+        if (product) {
+          const updateData = gift.source_location === "production"
+            ? { production_stock: Number(product.production_stock) + Number(gift.quantity) }
+            : { shop_stock: Number(product.shop_stock) + Number(gift.quantity) };
+          await supabase.from("products").update(updateData as any).eq("id", gift.product_id);
+        }
       }
       const { error } = await supabase.from("gift_records").delete().eq("id", id);
       if (error) throw error;
@@ -162,6 +191,7 @@ export default function Gifts() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["gift_records"] });
       qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["stock_levels"] });
       setDeleteId(null);
       logAudit({ action_type: "delete", module: "gifts", record_id: deleteId || undefined, note: "gift deleted, stock restored" });
       toast({ title: "Gift deleted & stock restored ✓" });
@@ -182,8 +212,8 @@ export default function Gifts() {
         <div className="flex gap-2 w-full sm:w-auto">
           <Button variant="outline" className="flex-1 sm:flex-none" onClick={() => {
             if (!sorted.length) return;
-            downloadCSV("gifts.csv", ["Date", "Product", "Source", "Qty", "Recipient", "Reason"],
-              sorted.map((g: any) => [g.gift_date, `${g.products?.name} (${g.products?.bottle_size})`, g.source_location, g.quantity, g.recipient || "", g.reason_category])
+            downloadCSV("gifts.csv", ["Date", "Product", "Branch", "Qty", "Recipient", "Reason"],
+              sorted.map((g: any) => [g.gift_date, `${g.products?.name} (${g.products?.bottle_size})`, branchName(g), g.quantity, g.recipient || "", g.reason_category])
             );
           }}><Download className="mr-2 h-4 w-4" />Export</Button>
           <Button className="flex-1 sm:flex-none" onClick={() => { resetForm(); setOpen(true); }}><Plus className="mr-2 h-4 w-4" />Add Gift</Button>
@@ -192,34 +222,25 @@ export default function Gifts() {
 
       <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} onClear={() => { setDateFrom(""); setDateTo(""); }} />
 
-      {/* Mobile card list */}
-      <div className="mobile-card-list">
+      <MobileList>
         {isLoading ? (
           <p className="text-sm text-muted-foreground text-center py-8">Loading...</p>
         ) : sorted.map((g: any) => (
-          <div key={g.id} className="mobile-card-item">
-            <div className="mobile-card-header">
-              <div>
-                <p className="mobile-card-title">{g.products?.name} <span className="text-muted-foreground font-normal">({g.products?.bottle_size})</span></p>
-                <p className="text-xs text-muted-foreground">{g.gift_date} · {g.source_location}</p>
-              </div>
-              <span className="text-xs capitalize text-muted-foreground">{g.reason_category?.replace(/_/g, " ")}</span>
-            </div>
-            <div className="mobile-card-row">
-              <span className="text-sm text-muted-foreground">{g.recipient || "No recipient"}</span>
-              <span className="text-sm font-semibold">{g.quantity} units</span>
-            </div>
-            <div className="mobile-card-actions">
-              <Button variant="ghost" size="sm" className="h-8" onClick={() => openEdit(g)}>
-                <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
-              </Button>
-              <Button variant="ghost" size="sm" className="h-8 text-destructive" onClick={() => setDeleteId(g.id)}>
-                <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
-              </Button>
-            </div>
-          </div>
+          <MobileListItem
+            key={g.id}
+            avatarFallback={g.products?.name || "G"}
+            supportingIcon={<Gift className="h-3 w-3" />}
+            heading={`${g.products?.name || "—"} (${g.products?.bottle_size || "—"}) · ${g.quantity}×`}
+            caption={`${g.gift_date} · ${branchName(g)} · ${g.recipient || "—"}`}
+            meta={<span className="capitalize">{g.reason_category?.replace(/_/g, " ")}</span>}
+            trailing={<Badge variant="secondary" className="text-xs">{g.quantity}×</Badge>}
+            actions={[
+              { id: "edit", label: "Edit", icon: <Pencil className="h-4 w-4" />, onClick: () => openEdit(g) },
+              { id: "delete", label: "Delete", icon: <Trash2 className="h-4 w-4" />, onClick: () => setDeleteId(g.id), variant: "destructive" },
+            ]}
+          />
         ))}
-      </div>
+      </MobileList>
 
       {/* Desktop table */}
       <div className="desktop-table">
@@ -245,7 +266,7 @@ export default function Gifts() {
                     <TableRow key={g.id}>
                       <TableCell className="whitespace-nowrap">{g.gift_date}</TableCell>
                       <TableCell className="font-medium">{g.products?.name} <span className="text-muted-foreground text-xs">({g.products?.bottle_size})</span></TableCell>
-                      <TableCell><Badge variant="outline" className="capitalize">{g.source_location}</Badge></TableCell>
+                      <TableCell><Badge variant="outline" className="capitalize">{branchName(g)}</Badge></TableCell>
                       <TableCell>{g.quantity}</TableCell>
                       <TableCell>{g.recipient || "—"}</TableCell>
                       <TableCell className="capitalize text-sm">{g.reason_category?.replace(/_/g, " ")}</TableCell>
@@ -275,16 +296,15 @@ export default function Gifts() {
               </SelectContent>
             </Select>
             <div>
-              <label className="text-sm text-muted-foreground">Take from</label>
-              <Select value={sourceLocation} onValueChange={setSourceLocation}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <label className="text-sm text-muted-foreground">Take from (branch)</label>
+              <Select value={branchId} onValueChange={setBranchId}>
+                <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="shop">Shop</SelectItem>
-                  <SelectItem value="production">Production</SelectItem>
+                  {(branches || []).map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-            {selectedProduct && !editingId && <p className="text-sm text-muted-foreground">Available: <strong>{availableStock}</strong></p>}
+            {selectedProduct && branchId && <p className="text-sm text-muted-foreground">Available at {selectedBranch?.name}: <strong>{availableStock}</strong></p>}
             <Input type="number" min={1} placeholder="Quantity" value={qty || ""} onChange={(e) => setQty(Number(e.target.value))} required />
             <Input type="date" value={giftDate} onChange={(e) => setGiftDate(e.target.value)} />
             <Input placeholder="Recipient (optional)" value={recipient} onChange={(e) => setRecipient(e.target.value)} />

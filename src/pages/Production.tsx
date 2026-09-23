@@ -8,8 +8,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Ban } from "lucide-react";
+import { Plus, Trash2, Ban, Factory, Beaker, Eye } from "lucide-react";
 import { fmt } from "@/lib/stock-helpers";
+import { MobileList, MobileListItem } from "@/components/MobileList";
+import { Badge } from "@/components/ui/badge";
+import { fetchBranches, fetchStockMap, seedBranchIds, setBranchQty } from "@/lib/inventory";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -136,10 +139,16 @@ export default function Production() {
         }).eq("id", mat.id);
       }
 
-      // Update each product's production stock and cost
+      // Update each product's cost and add finished goods to the Production branch
+      const branches = await fetchBranches();
+      const prodBranchId = seedBranchIds(branches).prod;
+      const stockMap = await fetchStockMap(validEntries.map(e => e.product_id));
       for (const entry of validEntries) {
         const product = products!.find(p => p.id === entry.product_id)!;
-        const totalExisting = Number(product.production_stock) + Number(product.shop_stock) + Number(product.online_shop_stock);
+        const levels = stockMap.get(entry.product_id);
+        const totalExisting = levels
+          ? [...levels.values()].reduce((s, q) => s + Number(q), 0)
+          : Number(product.production_stock) + Number(product.shop_stock) + Number(product.online_shop_stock);
         const oldAvg = Number(product.average_cost_per_unit);
         const entryCost = costPerUnit * entry.quantity;
         const newAvg = totalExisting > 0
@@ -147,16 +156,19 @@ export default function Production() {
           : costPerUnit;
 
         await supabase.from("products").update({
-          production_stock: Number(product.production_stock) + entry.quantity,
           latest_cost_per_unit: costPerUnit,
           average_cost_per_unit: newAvg,
         }).eq("id", entry.product_id);
+
+        const cur = Number(levels?.get(prodBranchId) ?? product.production_stock);
+        await setBranchQty(entry.product_id, prodBranchId, "PROD", cur + entry.quantity);
       }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["production_batches"] });
       qc.invalidateQueries({ queryKey: ["raw_materials"] });
       qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["stock_levels"] });
       setOpen(false);
       resetForm();
       toast({ title: "Batch recorded ✓", description: "Materials deducted, stock updated." });
@@ -186,29 +198,31 @@ export default function Production() {
 
       // Check for multi-product batch
       const { data: batchProds } = await supabase.from("production_batch_products").select("*").eq("production_batch_id", id);
+      const branches = await fetchBranches();
+      const prodBranchId = seedBranchIds(branches).prod;
+      const reverseIds = batchProds && batchProds.length > 0
+        ? batchProds.map(bp => bp.product_id)
+        : [(batch as any).product_id];
+      const stockMap = await fetchStockMap(reverseIds);
+      const reverseQty = async (productId: string, qty: number) => {
+        const product = products?.find(p => p.id === productId);
+        const cur = Number(stockMap.get(productId)?.get(prodBranchId) ?? product?.production_stock ?? 0);
+        await setBranchQty(productId, prodBranchId, "PROD", Math.max(0, cur - Number(qty)));
+      };
       if (batchProds && batchProds.length > 0) {
         for (const bp of batchProds) {
-          const product = products?.find(p => p.id === bp.product_id);
-          if (product) {
-            await supabase.from("products").update({
-              production_stock: Math.max(0, Number(product.production_stock) - Number(bp.quantity_produced)),
-            }).eq("id", bp.product_id);
-          }
+          await reverseQty(bp.product_id, bp.quantity_produced);
         }
       } else {
         // Legacy single-product batch
-        const product = products?.find(p => p.id === (batch as any).product_id);
-        if (product) {
-          await supabase.from("products").update({
-            production_stock: Math.max(0, Number(product.production_stock) - Number(batch.quantity_produced)),
-          }).eq("id", (batch as any).product_id);
-        }
+        await reverseQty((batch as any).product_id, batch.quantity_produced);
       }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["production_batches"] });
       qc.invalidateQueries({ queryKey: ["raw_materials"] });
       qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["stock_levels"] });
       setVoidId(null);
       toast({ title: "Batch voided ✓", description: "Materials restored, stock reversed." });
     },
@@ -253,40 +267,32 @@ export default function Production() {
         <Button onClick={() => { resetForm(); setOpen(true); }} className="w-full sm:w-auto"><Plus className="mr-2 h-4 w-4" />New Batch</Button>
       </div>
 
-      {/* Mobile card list */}
-      <div className="mobile-card-list">
+      <MobileList>
         {isLoading ? (
           <p className="text-sm text-muted-foreground text-center py-8">Loading...</p>
-        ) : batches?.map((b: any) => (
-          <div key={b.id} className={`mobile-card-item ${b.voided ? "opacity-40" : ""}`}>
-            <div className="mobile-card-header">
-              <div className="min-w-0 flex-1">
-                <p className="mobile-card-title truncate">{getBatchProductsLabel(b)}</p>
-                <p className="text-xs text-muted-foreground">{b.production_date} · {b.batch_code}</p>
-              </div>
-              {!b.voided && (
-                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setVoidId(b.id)}>
-                  <Ban className="h-3.5 w-3.5 text-destructive" />
-                </Button>
-              )}
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <p className="mobile-card-label">Qty</p>
-                <p className="mobile-card-value">{b.quantity_produced}</p>
-              </div>
-              <div>
-                <p className="mobile-card-label">Total Cost</p>
-                <p className="mobile-card-value">{fmt(b.total_batch_cost)}</p>
-              </div>
-              <div>
-                <p className="mobile-card-label">Cost/Unit</p>
-                <p className="mobile-card-value">{b.voided ? "VOIDED" : fmt(b.cost_per_unit)}</p>
-              </div>
-            </div>
-          </div>
+        ) : (batches as any[])?.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">No batches yet</p>
+        ) : (batches as any[])?.map((b: any) => (
+          <MobileListItem
+            key={b.id}
+            avatarFallback={(getBatchProductsLabel(b)?.charAt(0) || "P").toUpperCase()}
+            supportingIcon={b.production_batch_products?.length > 1 ? <Factory className="h-3 w-3" /> : <Beaker className="h-3 w-3" />}
+            heading={getBatchProductsLabel(b)}
+            caption={`${b.production_date} · ${b.batch_code} · Qty ${b.quantity_produced} · Cost ${fmt(b.total_batch_cost)}`}
+            meta={`Cost/Unit: ${b.voided ? "VOIDED" : fmt(b.cost_per_unit)}`}
+            trailing={<Badge variant={b.voided ? "destructive" : "outline"} className="text-xs">{b.voided ? "VOIDED" : `${b.quantity_produced} units`}</Badge>}
+            className={b.voided ? "opacity-60" : ""}
+            actions={
+              b.voided
+                ? [{ id: "view", label: "View", icon: <Eye className="h-4 w-4" />, onClick: () => {} }]
+                : [
+                    { id: "view", label: "View", icon: <Eye className="h-4 w-4" />, onClick: () => {} },
+                    { id: "void", label: "Void Batch", icon: <Ban className="h-4 w-4" />, onClick: () => setVoidId(b.id), variant: "destructive" },
+                  ]
+            }
+          />
         ))}
-      </div>
+      </MobileList>
 
       {/* Desktop table */}
       <div className="desktop-table">

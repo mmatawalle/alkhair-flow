@@ -2,11 +2,13 @@ import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertTriangle, ArrowRightLeft, DollarSign, Gift, Plus, Receipt, Repeat, TrendingUp, Truck } from "lucide-react";
 import { StockBadge, getProductStockLevel, getStockLevel, fmt } from "@/lib/stock-helpers";
+import { fetchBranches, fetchStockMap } from "@/lib/inventory";
 import type { Database } from "@/integrations/supabase/types";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
@@ -14,16 +16,7 @@ const today = new Date().toISOString().split("T")[0];
 
 type Product = Database["public"]["Tables"]["products"]["Row"];
 type RawMaterial = Database["public"]["Tables"]["raw_materials"]["Row"];
-type SaleRecord = Database["public"]["Tables"]["sale_records"]["Row"];
 type InternalTransaction = Database["public"]["Tables"]["internal_transactions"]["Row"];
-
-type SaleWithProduct = SaleRecord & {
-  products: Pick<Product, "name" | "bottle_size"> | null;
-};
-
-type WeekSale = Pick<SaleRecord, "sale_date" | "total_revenue" | "profit" | "product_id" | "quantity_sold"> & {
-  products: Pick<Product, "name"> | null;
-};
 
 type InternalWithProduct = InternalTransaction & {
   products: Pick<Product, "name" | "bottle_size" | "average_cost_per_unit"> | null;
@@ -31,6 +24,7 @@ type InternalWithProduct = InternalTransaction & {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
 
   const { data: products } = useQuery({
     queryKey: ["products"],
@@ -50,17 +44,34 @@ export default function Dashboard() {
     },
   });
 
+  const { data: branches } = useQuery({ queryKey: ["branches"], queryFn: () => fetchBranches() });
+  const productIds = (products || []).map((p) => (p as any).id);
+  const { data: stockMap } = useQuery({
+    queryKey: ["stock_levels", productIds.join(",")],
+    queryFn: () => fetchStockMap(productIds),
+    enabled: productIds.length > 0,
+  });
+
   const { data: todaySales } = useQuery({
-    queryKey: ["sale_records", "today"],
+    queryKey: ["sales", "today"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Prefer normalized sales; fallback to legacy sale_records if migration not yet applied or empty
+      const { data: sales, error: sErr } = await supabase
+        .from("sales")
+        .select("id, sale_number, sale_date, total, status, created_at, sale_items(quantity, line_profit, line_total, products(name, bottle_size))")
+        .eq("sale_date", today)
+        .neq("status", "voided")
+        .order("created_at", { ascending: false });
+      if (sErr) throw sErr;
+      if ((sales as any[])?.length) return sales as any[];
+      const { data: legacy, error: lErr } = await supabase
         .from("sale_records")
         .select("*, products(name, bottle_size)")
         .eq("sale_date", today)
         .eq("voided", false)
         .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data as SaleWithProduct[];
+      if (lErr) throw lErr;
+      return (legacy as any[]) || [];
     },
   });
 
@@ -92,28 +103,58 @@ export default function Dashboard() {
   });
 
   const { data: weekSales } = useQuery({
-    queryKey: ["sale_records", "week"],
+    queryKey: ["sales", "week"],
     queryFn: async () => {
       const weekAgo = new Date();
       weekAgo.setDate(weekAgo.getDate() - 6);
-      const { data, error } = await supabase
+      const { data: sales, error: sErr } = await supabase
+        .from("sales")
+        .select("sale_date, sale_items(quantity, line_total, line_profit, product_id, products(name))")
+        .neq("status", "voided")
+        .gte("sale_date", weekAgo.toISOString().split("T")[0]);
+      if (!sErr && (sales as any[])?.length) return sales as any[];
+      const { data: legacy, error: lErr } = await supabase
         .from("sale_records")
         .select("sale_date, total_revenue, profit, product_id, quantity_sold, products(name)")
         .eq("voided", false)
         .gte("sale_date", weekAgo.toISOString().split("T")[0]);
-      if (error) throw error;
-      return data as WeekSale[];
+      if (lErr) throw lErr;
+      return legacy as any[];
     },
   });
 
-  const todayRevenue = todaySales?.reduce((s, r) => s + Number(r.total_revenue), 0) ?? 0;
-  const todayProfit = todaySales?.reduce((s, r) => s + Number(r.profit), 0) ?? 0;
+  const todayRevenue = (() => {
+    if (!todaySales?.length) return 0;
+    const first: any = todaySales[0];
+    if (first.total !== undefined) return (todaySales as any[]).reduce((s, r) => s + Number(r.total), 0);
+    return (todaySales as any[]).reduce((s, r) => s + Number(r.total_revenue || 0), 0);
+  })();
+  const todayProfit = (() => {
+    if (!todaySales?.length) return 0;
+    const first: any = todaySales[0];
+    if (first.sale_items) {
+      return (todaySales as any[]).reduce((s, sale) => s + ((sale.sale_items as any[]) || []).reduce((a, it) => a + Number(it.line_profit || 0), 0), 0);
+    }
+    return (todaySales as any[]).reduce((s, r) => s + Number(r.profit || 0), 0);
+  })();
   const todayTransferQty = todayTransfers?.reduce((s, r) => s + Number(r.quantity_transferred), 0) ?? 0;
 
-  const lowProducts = products?.filter(p => {
-    const minStock = Math.min(Number(p.shop_stock), Number(p.online_shop_stock));
-    return getProductStockLevel(minStock) !== "available";
-  }) ?? [];
+  const lowProducts = (() => {
+    if (!products?.length) return [] as any[];
+    if (!stockMap || !(branches || []).length) {
+      return products.filter((p: any) => {
+        const minStock = Math.min(Number(p.shop_stock), Number(p.online_shop_stock));
+        return getProductStockLevel(minStock) !== "available";
+      });
+    }
+    const shop = (branches as any[]).find((b) => b.code === "SHOP")?.id;
+    const online = (branches as any[]).find((b) => b.code === "ONLINE")?.id;
+    return (products as any[]).filter((p: any) => {
+      const s = Number(stockMap.get(p.id)?.get(shop) ?? p.shop_stock);
+      const o = Number(stockMap.get(p.id)?.get(online) ?? p.online_shop_stock);
+      return getProductStockLevel(Math.min(s, o)) !== "available";
+    });
+  })();
   const lowMaterials = rawMaterials?.filter(m => getStockLevel(Number(m.current_stock), Number(m.reorder_level)) !== "available") ?? [];
   const alertCount = lowProducts.length + lowMaterials.length;
 
@@ -126,20 +167,41 @@ export default function Dashboard() {
       const ds = d.toISOString().split("T")[0];
       map[ds] = { date: d.toLocaleDateString("en", { weekday: "short" }), revenue: 0 };
     }
-    weekSales.forEach(s => {
-      if (map[s.sale_date]) map[s.sale_date].revenue += Number(s.total_revenue);
-    });
+    const isNormalized = !!(weekSales as any[])[0]?.sale_items;
+    if (isNormalized) {
+      (weekSales as any[]).forEach((sale: any) => {
+        if (map[sale.sale_date]) {
+          const rev = ((sale.sale_items as any[]) || []).reduce((s, it) => s + Number(it.line_total || 0), 0);
+          map[sale.sale_date].revenue += rev;
+        }
+      });
+    } else {
+      (weekSales as any[]).forEach((s: any) => {
+        if (map[s.sale_date]) map[s.sale_date].revenue += Number(s.total_revenue || 0);
+      });
+    }
     return Object.values(map);
   })();
 
   const topProduct = (() => {
     if (!weekSales?.length) return null;
     const counts: Record<string, { name: string; qty: number }> = {};
-    weekSales.forEach((s: WeekSale) => {
-      const id = s.product_id;
-      if (!counts[id]) counts[id] = { name: s.products?.name || "Unknown", qty: 0 };
-      counts[id].qty += Number(s.quantity_sold);
-    });
+    const isNormalized = !!(weekSales as any[])[0]?.sale_items;
+    if (isNormalized) {
+      (weekSales as any[]).forEach((sale: any) => {
+        ((sale.sale_items as any[]) || []).forEach((it: any) => {
+          const id = it.product_id;
+          if (!counts[id]) counts[id] = { name: it.products?.name || "Unknown", qty: 0 };
+          counts[id].qty += Number(it.quantity || 0);
+        });
+      });
+    } else {
+      (weekSales as any[]).forEach((s: any) => {
+        const id = s.product_id;
+        if (!counts[id]) counts[id] = { name: s.products?.name || "Unknown", qty: 0 };
+        counts[id].qty += Number(s.quantity_sold || 0);
+      });
+    }
     return Object.values(counts).sort((a, b) => b.qty - a.qty)[0] || null;
   })();
 
@@ -161,14 +223,15 @@ export default function Dashboard() {
 
   const totalPendingValue = owesSummary.reduce((s, o) => s + o.productValue + o.cash, 0);
 
-  const quickActions = [
-    { label: "Record sale", icon: Plus, variant: "default" as const, onClick: () => navigate("/sales", { state: { openDialog: true } }) },
-    { label: "Move to shop", icon: Truck, variant: "outline" as const, onClick: () => navigate("/transfers", { state: { openDialog: true, destination: "shop" } }) },
-    { label: "Move online", icon: Truck, variant: "outline" as const, onClick: () => navigate("/transfers", { state: { openDialog: true, destination: "online_shop" } }) },
-    { label: "Add expense", icon: Receipt, variant: "outline" as const, onClick: () => navigate("/expenses", { state: { openDialog: true } }) },
-    { label: "Gift item", icon: Gift, variant: "outline" as const, onClick: () => navigate("/gifts", { state: { openDialog: true } }) },
-    { label: "Internal use", icon: Repeat, variant: "outline" as const, onClick: () => navigate("/internal", { state: { openDialog: true } }) },
+  const allQuickActions = [
+    { label: "Record sale", icon: Plus, variant: "default" as const, onClick: () => navigate("/sales", { state: { openDialog: true } }), adminOnly: false },
+    { label: "Move to shop", icon: Truck, variant: "outline" as const, onClick: () => navigate("/transfers", { state: { openDialog: true, destination: "shop" } }), adminOnly: true },
+    { label: "Move online", icon: Truck, variant: "outline" as const, onClick: () => navigate("/transfers", { state: { openDialog: true, destination: "online_shop" } }), adminOnly: true },
+    { label: "Add expense", icon: Receipt, variant: "outline" as const, onClick: () => navigate("/expenses", { state: { openDialog: true } }), adminOnly: true },
+    { label: "Gift item", icon: Gift, variant: "outline" as const, onClick: () => navigate("/gifts", { state: { openDialog: true } }), adminOnly: true },
+    { label: "Internal use", icon: Repeat, variant: "outline" as const, onClick: () => navigate("/internal", { state: { openDialog: true } }), adminOnly: true },
   ];
+  const quickActions = allQuickActions.filter((a) => !a.adminOnly || isAdmin);
   const [primaryAction, ...secondaryActions] = quickActions;
 
   return (
@@ -180,35 +243,38 @@ export default function Dashboard() {
             Today&apos;s sales, stock, and daily work.
           </p>
         </div>
-        <Button variant="outline" size="sm" className="h-9 shrink-0 bg-card/80 px-3 md:h-10 md:px-4" onClick={() => navigate("/profit-loss")}>
-          View report
-        </Button>
+        {isAdmin && (
+          <Button variant="outline" size="sm" className="h-9 shrink-0 bg-card/80 px-3 md:h-10 md:px-4" onClick={() => navigate("/profit-loss")}>
+            View report
+          </Button>
+        )}
       </div>
 
-      <Card className="bg-card/95">
-        <CardContent className="space-y-3 p-3 md:p-4">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Quick actions</p>
-            <span className="hidden text-xs text-muted-foreground sm:inline">Daily shortcuts</span>
-          </div>
-          <Button
-            variant={primaryAction.variant}
-            className="h-11 w-full justify-start px-3 shadow-none md:hidden"
-            onClick={primaryAction.onClick}
-          >
-            <primaryAction.icon className="h-4 w-4" />
-            {primaryAction.label}
-          </Button>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      {quickActions.length > 0 && primaryAction && (
+        <Card className="bg-card/95">
+          <CardContent className="space-y-3 p-3 md:p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Quick actions</p>
+              <span className="hidden text-xs text-muted-foreground sm:inline">Daily shortcuts</span>
+            </div>
             <Button
               variant={primaryAction.variant}
-              className="hidden h-10 min-w-0 justify-start px-3 text-sm shadow-none md:inline-flex"
+              className="h-11 w-full justify-start px-3 shadow-none md:hidden"
               onClick={primaryAction.onClick}
             >
               <primaryAction.icon className="h-4 w-4" />
-              <span className="truncate">{primaryAction.label}</span>
+              {primaryAction.label}
             </Button>
-            {(secondaryActions).map(action => (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              <Button
+                variant={primaryAction.variant}
+                className="hidden h-10 min-w-0 justify-start px-3 text-sm shadow-none md:inline-flex"
+                onClick={primaryAction.onClick}
+              >
+                <primaryAction.icon className="h-4 w-4" />
+                <span className="truncate">{primaryAction.label}</span>
+              </Button>
+              {(secondaryActions).map(action => (
               <Button
                 key={action.label}
                 variant={action.variant}
@@ -218,10 +284,11 @@ export default function Dashboard() {
                 <action.icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 <span className="truncate">{action.label}</span>
               </Button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <section className="grid grid-cols-2 gap-2 md:gap-3 lg:grid-cols-4">
         <MetricCard
@@ -312,13 +379,17 @@ export default function Dashboard() {
               <EmptyState text="Nothing urgent right now." />
             ) : (
               <>
-                {lowProducts.slice(0, 4).map(p => {
-                  const level = getProductStockLevel(Math.min(Number(p.shop_stock), Number(p.online_shop_stock)));
+                {lowProducts.slice(0, 4).map((p: any) => {
+                  const shopId = (branches as any[])?.find((b) => b.code === "SHOP")?.id;
+                  const onlineId = (branches as any[])?.find((b) => b.code === "ONLINE")?.id;
+                  const s = Number(stockMap?.get(p.id)?.get(shopId) ?? p.shop_stock);
+                  const o = Number(stockMap?.get(p.id)?.get(onlineId) ?? p.online_shop_stock);
+                  const level = getProductStockLevel(Math.min(s, o));
                   return (
                     <div key={p.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium">{p.name} ({p.bottle_size})</p>
-                        <p className="text-xs text-muted-foreground">Shop {p.shop_stock} | Online {p.online_shop_stock}</p>
+                        <p className="text-xs text-muted-foreground">Shop {s} | Online {o}</p>
                       </div>
                       <StockBadge level={level} />
                     </div>
@@ -364,17 +435,35 @@ export default function Dashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {todaySales.slice(0, 6).map((sale: SaleWithProduct) => (
-                    <TableRow key={sale.id}>
-                      <TableCell className="font-medium">
-                        {sale.products?.name}
-                        <span className="ml-1 text-xs text-muted-foreground">({sale.products?.bottle_size})</span>
-                      </TableCell>
-                      <TableCell>{sale.quantity_sold}</TableCell>
-                      <TableCell className="capitalize">{String(sale.sale_source).replace("_", " ")}</TableCell>
-                      <TableCell className="text-right">{fmt(sale.total_revenue)}</TableCell>
-                    </TableRow>
-                  ))}
+                  {todaySales.slice(0, 6).map((sale: any) => {
+                    const isNorm = !!sale.sale_items;
+                    if (isNorm) {
+                      const first = (sale.sale_items as any[])[0];
+                      const qty = (sale.sale_items as any[]).reduce((s, it) => s + Number(it.quantity || 0), 0);
+                      return (
+                        <TableRow key={sale.id}>
+                          <TableCell className="font-medium">
+                            {first?.products?.name || `${(sale.sale_items as any[]).length} items`}
+                            {first?.products?.bottle_size && <span className="ml-1 text-xs text-muted-foreground">({first.products.bottle_size})</span>}
+                          </TableCell>
+                          <TableCell>{qty}</TableCell>
+                          <TableCell className="capitalize">—</TableCell>
+                          <TableCell className="text-right">{fmt(sale.total)}</TableCell>
+                        </TableRow>
+                      );
+                    }
+                    return (
+                      <TableRow key={sale.id}>
+                        <TableCell className="font-medium">
+                          {sale.products?.name}
+                          <span className="ml-1 text-xs text-muted-foreground">({sale.products?.bottle_size})</span>
+                        </TableCell>
+                        <TableCell>{sale.quantity_sold}</TableCell>
+                        <TableCell className="capitalize">{String(sale.sale_source).replace("_", " ")}</TableCell>
+                        <TableCell className="text-right">{fmt(sale.total_revenue)}</TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}
@@ -387,7 +476,7 @@ export default function Dashboard() {
               <CardTitle>Pending internal</CardTitle>
               {totalPendingValue > 0 && <p className="mt-1 text-sm text-muted-foreground">{fmt(totalPendingValue)} total value</p>}
             </div>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/internal")}>Open internal</Button>
+            {isAdmin && <Button variant="ghost" size="sm" onClick={() => navigate("/internal")}>Open internal</Button>}
           </CardHeader>
           <CardContent className="overflow-x-auto">
             {owesSummary.length === 0 ? (
@@ -438,20 +527,28 @@ export default function Dashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {products.map(p => (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-medium">
-                      {p.name}
-                      <span className="ml-1 text-xs text-muted-foreground">({p.bottle_size})</span>
-                    </TableCell>
-                    <TableCell>{p.production_stock}</TableCell>
-                    <TableCell>{p.shop_stock}</TableCell>
-                    <TableCell>{p.online_shop_stock}</TableCell>
-                    <TableCell>
-                      <StockBadge level={getProductStockLevel(Math.min(Number(p.shop_stock), Number(p.online_shop_stock)))} />
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {(products as any[]).map((p: any) => {
+                  const shopId = (branches as any[])?.find((b) => b.code === "SHOP")?.id;
+                  const onlineId = (branches as any[])?.find((b) => b.code === "ONLINE")?.id;
+                  const prodId = (branches as any[])?.find((b) => b.code === "PROD")?.id;
+                  const s = Number(stockMap?.get(p.id)?.get(shopId) ?? p.shop_stock);
+                  const o = Number(stockMap?.get(p.id)?.get(onlineId) ?? p.online_shop_stock);
+                  const prod = Number(stockMap?.get(p.id)?.get(prodId) ?? p.production_stock);
+                  return (
+                    <TableRow key={p.id}>
+                      <TableCell className="font-medium">
+                        {p.name}
+                        <span className="ml-1 text-xs text-muted-foreground">({p.bottle_size})</span>
+                      </TableCell>
+                      <TableCell>{prod}</TableCell>
+                      <TableCell>{s}</TableCell>
+                      <TableCell>{o}</TableCell>
+                      <TableCell>
+                        <StockBadge level={getProductStockLevel(Math.min(s, o))} />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}

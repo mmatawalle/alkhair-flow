@@ -2,6 +2,9 @@ import { ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
+import { CashierBottomNav } from "@/components/CashierBottomNav";
+import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
 
 const pageTitles: Record<string, string> = {
   "/": "Dashboard",
@@ -11,6 +14,7 @@ const pageTitles: Record<string, string> = {
   "/production": "Production",
   "/transfers": "Transfers",
   "/sales": "Sales",
+  "/pos-banks": "POS & Banks",
   "/internal": "Internal transactions",
   "/expenses": "Expenses",
   "/gifts": "Gifts",
@@ -26,6 +30,11 @@ const pageTitles: Record<string, string> = {
 export function AppLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const pageTitle = pageTitles[location.pathname] ?? "Workspace";
+  const { roles } = useAuth();
+  const showBottomNav =
+    roles.includes("cashier") ||
+    roles.includes("branch_manager") ||
+    roles.includes("staff");
 
   return (
     <SidebarProvider>
@@ -46,9 +55,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
               AL-KHAIR DRINKS & SNACKS
             </div>
           </header>
-          <main className="flex-1 overflow-auto p-3 md:p-6 lg:p-8 scrollbar-thin">
+          <main
+            className={cn(
+              "flex-1 overflow-auto p-3 md:p-6 lg:p-8 scrollbar-thin",
+              showBottomNav && "pb-[84px] md:pb-6 lg:pb-8",
+            )}
+          >
             {children}
           </main>
+          <CashierBottomNav />
         </div>
       </div>
     </SidebarProvider>

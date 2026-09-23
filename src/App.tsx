@@ -24,9 +24,20 @@ import Vendors from "./pages/Vendors";
 import VendorConsignments from "./pages/VendorConsignments";
 import UserManagement from "./pages/UserManagement";
 import AIDrafts from "./pages/AIDrafts";
+import LoyaltyDashboard from "./pages/loyalty/Dashboard";
+import LoyaltyCustomers from "./pages/loyalty/Customers";
+import LoyaltyRewards from "./pages/loyalty/Rewards";
+import PaymentChannels from "./pages/PaymentChannels";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
+
+function RequireAdmin({ children }: { children: React.ReactNode }) {
+  const { isAdmin, loading } = useAuth();
+  if (loading) return null;
+  if (!isAdmin) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
 
 function ProtectedRoutes() {
   const { user, loading, isSuperAdmin } = useAuth();
@@ -45,21 +56,25 @@ function ProtectedRoutes() {
     <AppLayout>
       <Routes>
         <Route path="/" element={<Dashboard />} />
-        <Route path="/raw-materials" element={<RawMaterials />} />
+        <Route path="/raw-materials" element={<RequireAdmin><RawMaterials /></RequireAdmin>} />
         <Route path="/products" element={<Products />} />
-        <Route path="/purchases" element={<Purchases />} />
-        <Route path="/production" element={<Production />} />
-        <Route path="/transfers" element={<Transfers />} />
+        <Route path="/purchases" element={<RequireAdmin><Purchases /></RequireAdmin>} />
+        <Route path="/production" element={<RequireAdmin><Production /></RequireAdmin>} />
+        <Route path="/transfers" element={<RequireAdmin><Transfers /></RequireAdmin>} />
         <Route path="/sales" element={<Sales />} />
-        <Route path="/internal" element={<InternalTransactions />} />
-        <Route path="/expenses" element={<Expenses />} />
-        <Route path="/gifts" element={<Gifts />} />
-        <Route path="/profit-loss" element={<ProfitLoss />} />
+        <Route path="/pos-banks" element={<RequireAdmin><PaymentChannels /></RequireAdmin>} />
+        <Route path="/internal" element={<RequireAdmin><InternalTransactions /></RequireAdmin>} />
+        <Route path="/expenses" element={<RequireAdmin><Expenses /></RequireAdmin>} />
+        <Route path="/gifts" element={<RequireAdmin><Gifts /></RequireAdmin>} />
+        <Route path="/profit-loss" element={<RequireAdmin><ProfitLoss /></RequireAdmin>} />
         <Route path="/stock-adjustments" element={<StockAdjustments />} />
-        <Route path="/vendors" element={<Vendors />} />
-        <Route path="/vendor-ops" element={<VendorConsignments />} />
-        <Route path="/ai-drafts" element={<AIDrafts />} />
-        <Route path="/audit-log" element={<AuditLog />} />
+        <Route path="/vendors" element={<RequireAdmin><Vendors /></RequireAdmin>} />
+        <Route path="/vendor-ops" element={<RequireAdmin><VendorConsignments /></RequireAdmin>} />
+        <Route path="/ai-drafts" element={<RequireAdmin><AIDrafts /></RequireAdmin>} />
+        <Route path="/loyalty" element={<LoyaltyDashboard />} />
+        <Route path="/loyalty/customers" element={<LoyaltyCustomers />} />
+        <Route path="/loyalty/rewards" element={<LoyaltyRewards />} />
+        <Route path="/audit-log" element={<RequireAdmin><AuditLog /></RequireAdmin>} />
         {isSuperAdmin && <Route path="/users" element={<UserManagement />} />}
         <Route path="*" element={<NotFound />} />
       </Routes>

@@ -4,28 +4,42 @@ import { fmt } from "@/lib/stock-helpers";
 import { Printer } from "lucide-react";
 import { useRef } from "react";
 
+export interface ReceiptData {
+  sale: {
+    id: string;
+    sale_number: string;
+    sale_date: string;
+    sale_type: string;
+    total: number;
+    subtotal: number;
+    discount: number;
+    status: string;
+    note?: string | null;
+    branches?: { name: string } | null;
+    loyalty_customers?: { full_name: string; phone: string } | null;
+    pos_terminals?: { label: string; terminal_id: string | null } | null;
+    bank_accounts?: { bank_name: string; account_name: string } | null;
+  };
+  items: {
+    quantity: number;
+    unit_price: number;
+    line_total: number;
+    products?: { name: string; bottle_size: string } | null;
+  }[];
+  pointsEarned: number;
+}
+
 interface SaleReceiptProps {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  sale: {
-    id: string;
-    sale_date: string;
-    quantity_sold: number;
-    selling_price_per_unit: number;
-    total_revenue: number;
-    total_cogs: number;
-    profit: number;
-    sale_type: string;
-    sale_source: string;
-    note?: string | null;
-    products?: { name: string; bottle_size: string } | null;
-  } | null;
+  data: ReceiptData | null;
 }
 
-export function SaleReceipt({ open, onOpenChange, sale }: SaleReceiptProps) {
+export function SaleReceipt({ open, onOpenChange, data }: SaleReceiptProps) {
   const printRef = useRef<HTMLDivElement>(null);
 
-  if (!sale) return null;
+  if (!data) return null;
+  const { sale, items, pointsEarned } = data;
 
   const handlePrint = () => {
     const content = printRef.current;
@@ -63,14 +77,34 @@ export function SaleReceipt({ open, onOpenChange, sale }: SaleReceiptProps) {
           <div className="sub">Fresh Drinks & More</div>
           <hr />
           <div className="row"><span>Date:</span><span>{sale.sale_date}</span></div>
-          <div className="row"><span>Receipt #:</span><span>{sale.id.slice(0, 8).toUpperCase()}</span></div>
-          <div className="row"><span>Source:</span><span style={{ textTransform: "capitalize" }}>{sale.sale_source === "online_shop" ? "Online Shop" : "Shop"}</span></div>
+          <div className="row"><span>Receipt #:</span><span>{sale.sale_number}</span></div>
+          <div className="row"><span>Branch:</span><span>{sale.branches?.name || "—"}</span></div>
           <div className="row"><span>Payment:</span><span style={{ textTransform: "uppercase" }}>{sale.sale_type}</span></div>
+          {sale.sale_type === "pos" && sale.pos_terminals && (
+            <div className="row"><span>POS:</span><span>{sale.pos_terminals.label}{sale.pos_terminals.terminal_id ? ` (${sale.pos_terminals.terminal_id})` : ""}</span></div>
+          )}
+          {sale.sale_type === "transfer" && sale.bank_accounts && (
+            <div className="row"><span>Bank:</span><span>{sale.bank_accounts.bank_name} — {sale.bank_accounts.account_name}</span></div>
+          )}
+          {sale.loyalty_customers && (
+            <div className="row"><span>Customer:</span><span>{sale.loyalty_customers.full_name}</span></div>
+          )}
           <hr />
-          <div className="row"><span><strong>{sale.products?.name}</strong> ({sale.products?.bottle_size})</span></div>
-          <div className="row"><span>{sale.quantity_sold} × {fmt(sale.selling_price_per_unit)}</span><span>{fmt(sale.total_revenue)}</span></div>
+          {items.map((i, idx) => (
+            <div key={idx}>
+              <div className="row"><span><strong>{i.products?.name}</strong> ({i.products?.bottle_size})</span></div>
+              <div className="row"><span>{i.quantity} × {fmt(i.unit_price)}</span><span>{fmt(i.line_total)}</span></div>
+            </div>
+          ))}
           <hr />
-          <div className="row total"><span>TOTAL</span><span>{fmt(sale.total_revenue)}</span></div>
+          {sale.discount > 0 && (
+            <>
+              <div className="row"><span>Subtotal:</span><span>{fmt(sale.subtotal)}</span></div>
+              <div className="row"><span>Discount (redeemed):</span><span>-{fmt(sale.discount)}</span></div>
+            </>
+          )}
+          <div className="row total"><span>PAYABLE</span><span>{fmt(sale.total)}</span></div>
+          {pointsEarned > 0 && <div className="row"><span>Points earned:</span><span>+{pointsEarned}</span></div>}
           {sale.note && <div style={{ marginTop: 8, color: "#666", fontSize: 11 }}>Note: {sale.note}</div>}
           <div className="footer">Thank you for your purchase!</div>
         </div>

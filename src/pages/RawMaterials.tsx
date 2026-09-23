@@ -7,8 +7,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Beaker } from "lucide-react";
 import { StockBadge, getStockLevel, fmt } from "@/lib/stock-helpers";
+import { MobileList, MobileListItem } from "@/components/MobileList";
 import { useSortableTable } from "@/hooks/use-sortable-table";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
@@ -137,49 +138,25 @@ export default function RawMaterials() {
         </div>
       </div>
 
-      {/* Mobile card list */}
-      <div className="mobile-card-list">
+      <MobileList>
         {isLoading ? (
           <p className="text-sm text-muted-foreground text-center py-8">Loading...</p>
-        ) : sorted.map((m) => {
-          const needsReorder = m.stock_level !== "available";
-          return (
-            <div key={m.id} className="mobile-card-item">
-              <div className="mobile-card-header">
-                <div>
-                  <p className="mobile-card-title">{m.name}</p>
-                  <p className="text-xs text-muted-foreground">{m.purchase_unit} → {m.usage_unit}</p>
-                </div>
-                <StockBadge level={m.stock_level} />
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <p className="mobile-card-label">Stock</p>
-                  <p className="mobile-card-value">{m.current_stock} {m.usage_unit}</p>
-                </div>
-                <div>
-                  <p className="mobile-card-label">Avg Cost</p>
-                  <p className="mobile-card-value">{fmt(m.average_cost_per_usage_unit)}</p>
-                </div>
-                <div>
-                  <p className="mobile-card-label">Reorder</p>
-                  <p className="mobile-card-value">
-                    {needsReorder ? <span className="text-amber-600 font-medium">Now!</span> : m.reorder_level}
-                  </p>
-                </div>
-              </div>
-              <div className="mobile-card-actions">
-                <Button variant="ghost" size="sm" className="h-8" onClick={() => openEdit(m)}>
-                  <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
-                </Button>
-                <Button variant="ghost" size="sm" className="h-8 text-destructive" onClick={() => setDeleteId(m.id)}>
-                  <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
-                </Button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+        ) : sorted.map((m) => (
+          <MobileListItem
+            key={m.id}
+            avatarFallback={m.name}
+            supportingIcon={<Beaker className="h-3 w-3" />}
+            heading={m.name}
+            caption={`${m.current_stock} ${m.usage_unit} · ${fmt(m.average_cost_per_usage_unit)}`}
+            meta={`Reorder: ${m.reorder_level} ${m.usage_unit}`}
+            trailing={<StockBadge level={m.stock_level} />}
+            actions={[
+              { id: "edit", label: "Edit", icon: <Pencil className="h-4 w-4" />, onClick: () => openEdit(m) },
+              { id: "delete", label: "Delete", icon: <Trash2 className="h-4 w-4" />, onClick: () => setDeleteId(m.id), variant: "destructive" },
+            ]}
+          />
+        ))}
+      </MobileList>
 
       {/* Desktop table */}
       <div className="desktop-table">

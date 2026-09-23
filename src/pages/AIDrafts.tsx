@@ -14,7 +14,8 @@ import { postExpenseDraft, postProductionDraft, postPurchaseDrafts, postTransfer
 import { validateAndNormalizeDraft, type AIDraftRow } from "@/lib/ai-drafts";
 import { logAudit } from "@/lib/audit";
 import { Badge } from "@/components/ui/badge";
-import { Eye, FileUp, Sparkles, XCircle, CheckCircle2, Upload, Send } from "lucide-react";
+import { Eye, FileUp, Sparkles, XCircle, CheckCircle2, Upload, Send, Bot } from "lucide-react";
+import { MobileList, MobileListItem } from "@/components/MobileList";
 
 type SourceType = "text" | "image" | "pdf";
 
@@ -355,13 +356,43 @@ export default function AIDrafts() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Draft Inbox</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto scrollbar-thin">
-            <Table>
+      <MobileList>
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground text-center py-8">Loading...</p>
+        ) : normalizedDrafts.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">No drafts yet.</p>
+        ) : (
+          normalizedDrafts.map((draft: any) => (
+            <MobileListItem
+              key={draft.id}
+              avatarFallback={draft.draft_type?.[0] || "AI"}
+              supportingIcon={<Bot className="h-3 w-3" />}
+              heading={<span className="capitalize">{draft.draft_type.replace(/_/g, " ")}</span>}
+              caption={`${new Date(draft.created_at).toLocaleString()} · ${draft.source_type} · ${prettyConfidence(draft.confidence)}`}
+              trailing={<Badge variant={STATUS_COLORS[draft.status] || "outline"}>{draft.status.replace(/_/g, " ")}</Badge>}
+              actions={[
+                { id: "view", label: "View draft", icon: <Eye className="h-4 w-4" />, onClick: () => handleOpenDraft(draft) },
+                ...(draft.status !== "rejected" && draft.status !== "posted"
+                  ? [
+                      { id: "approve", label: "Approve", icon: <CheckCircle2 className="h-4 w-4" />, onClick: () => updateDraftMutation.mutate({ id: draft.id, extractedData: draft.extracted_data, status: "approved" }) },
+                      { id: "reject", label: "Reject", icon: <XCircle className="h-4 w-4" />, onClick: () => updateDraftMutation.mutate({ id: draft.id, extractedData: draft.extracted_data, status: "rejected" }), variant: "destructive" as const },
+                      { id: "post", label: "Post", icon: <Send className="h-4 w-4" />, onClick: () => postDraftMutation.mutate(draft), disabled: draft.status !== "approved" },
+                    ]
+                  : []),
+              ]}
+            />
+          ))
+        )}
+      </MobileList>
+
+      <div className="desktop-table">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Draft Inbox</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto scrollbar-thin">
+              <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Type</TableHead>
@@ -427,6 +458,7 @@ export default function AIDrafts() {
           </div>
         </CardContent>
       </Card>
+      </div>
 
       <Dialog open={!!currentDraft} onOpenChange={(open) => !open && setViewDraft(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">

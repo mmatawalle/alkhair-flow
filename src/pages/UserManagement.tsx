@@ -9,8 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, KeyRound, UserCheck, UserX } from "lucide-react";
+import { Plus, KeyRound, UserCheck, UserX, Users } from "lucide-react";
 import { logAudit } from "@/lib/audit";
+import { MobileList, MobileListItem } from "@/components/MobileList";
 
 interface ManagedUser {
   id: string;
@@ -37,8 +38,25 @@ export default function UserManagement() {
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [showReset, setShowReset] = useState<ManagedUser | null>(null);
-  const [form, setForm] = useState({ full_name: "", email: "", password: "", role: "staff" });
+  const [form, setForm] = useState({ full_name: "", email: "", password: "", role: "staff", branch_id: "__none" });
   const [newPassword, setNewPassword] = useState("");
+
+  const { data: branches } = useQuery({
+    queryKey: ["branches-all"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("branches").select("id, name, code").order("name");
+      if (error) throw error;
+      return data as any[];
+    },
+  });
+  const { data: profiles } = useQuery({
+    queryKey: ["profiles-branch"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("profiles").select("user_id, branch_id");
+      if (error) throw error;
+      return data as any[];
+    },
+  });
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ["admin-users"],
@@ -49,13 +67,22 @@ export default function UserManagement() {
   });
 
   const createMutation = useMutation({
-    mutationFn: () => callAdmin("create_user", form),
+    mutationFn: async () => {
+      const res = await callAdmin("create_user", { full_name: form.full_name, email: form.email, password: form.password, role: form.role });
+      const uid = res.user_id || res.user?.id;
+      const bid = form.branch_id === "__none" ? "" : form.branch_id;
+      if (bid && uid) {
+        await supabase.from("profiles").update({ branch_id: bid }).eq("user_id", uid);
+        qc.invalidateQueries({ queryKey: ["profiles-branch"] });
+      }
+      return res;
+    },
     onSuccess: () => {
       toast({ title: "User created" });
-      logAudit({ action_type: "CREATE", module: "Users", note: `Created user ${form.email}` });
+      logAudit({ action_type: "CREATE", module: "Users", note: `Created user ${form.email} branch ${form.branch_id === "__none" ? "none" : form.branch_id}` });
       qc.invalidateQueries({ queryKey: ["admin-users"] });
       setShowCreate(false);
-      setForm({ full_name: "", email: "", password: "", role: "staff" });
+      setForm({ full_name: "", email: "", password: "", role: "staff", branch_id: "__none" });
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -93,6 +120,17 @@ export default function UserManagement() {
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
+  const branchMutation = useMutation({
+    mutationFn: async ({ user_id, branch_id }: { user_id: string; branch_id: string }) => {
+      const { error } = await supabase.from("profiles").update({ branch_id: branch_id || null }).eq("user_id", user_id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["profiles-branch"] });
+      toast({ title: "Branch updated" });
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
 
   return (
     <div className="space-y-4">
@@ -101,14 +139,50 @@ export default function UserManagement() {
         <Button onClick={() => setShowCreate(true)}><Plus className="mr-2 h-4 w-4" />Add User</Button>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
+      <MobileList>
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground text-center py-8">Loading...</p>
+        ) : users.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">No users</p>
+        ) : (
+          users.map((u) => {
+            const prof = (profiles || []).find((p: any) => p.user_id === u.id);
+            const branchName = branches?.find((b: any) => b.id === prof?.branch_id)?.name || (prof?.branch_id ? prof.branch_id : "No branch");
+            return (
+              <MobileListItem
+                key={u.id}
+                avatarFallback={u.full_name || u.email}
+                supportingIcon={<Users className="h-3 w-3" />}
+                heading={u.full_name || u.email}
+                caption={u.email}
+                meta={`${u.roles?.[0] || "staff"} · ${branchName} · ${u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString() : "Never"}`}
+                trailing={<Badge variant={u.is_active ? "default" : "destructive"}>{u.is_active ? "Active" : "Inactive"}</Badge>}
+                actions={[
+                  { id: "reset", label: "Reset password", icon: <KeyRound className="h-4 w-4" />, onClick: () => setShowReset(u) },
+                  {
+                    id: "toggle",
+                    label: u.is_active ? "Deactivate" : "Activate",
+                    icon: u.is_active ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />,
+                    onClick: () => toggleMutation.mutate({ user_id: u.id, is_active: !u.is_active }),
+                    variant: u.is_active ? "destructive" : "default",
+                  },
+                ]}
+              />
+            );
+          })
+        )}
+      </MobileList>
+
+      <div className="desktop-table">
+        <Card>
+          <CardContent className="p-0">
+            <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead>Branch</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Last Login</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -116,53 +190,69 @@ export default function UserManagement() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Loading...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">Loading...</TableCell></TableRow>
               ) : users.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No users</TableCell></TableRow>
-              ) : users.map((u) => (
-                <TableRow key={u.id}>
-                  <TableCell className="font-medium">{u.full_name || "—"}</TableCell>
-                  <TableCell>{u.email}</TableCell>
-                  <TableCell>
-                    <Select
-                      value={u.roles[0] || "staff"}
-                      onValueChange={(role) => roleMutation.mutate({ user_id: u.id, role })}
-                    >
-                      <SelectTrigger className="w-[140px] h-8">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="super_admin">Super Admin</SelectItem>
-                        <SelectItem value="staff">Staff</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={u.is_active ? "default" : "destructive"}>
-                      {u.is_active ? "Active" : "Inactive"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
-                    {u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString() : "Never"}
-                  </TableCell>
-                  <TableCell className="text-right space-x-1">
-                    <Button size="sm" variant="outline" onClick={() => setShowReset(u)}>
-                      <KeyRound className="h-3 w-3 mr-1" />Reset
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={u.is_active ? "destructive" : "default"}
-                      onClick={() => toggleMutation.mutate({ user_id: u.id, is_active: !u.is_active })}
-                    >
-                      {u.is_active ? <><UserX className="h-3 w-3 mr-1" />Deactivate</> : <><UserCheck className="h-3 w-3 mr-1" />Activate</>}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">No users</TableCell></TableRow>
+              ) : users.map((u) => {
+                const prof = (profiles || []).find((p: any) => p.user_id === u.id);
+                return (
+                  <TableRow key={u.id}>
+                    <TableCell className="font-medium">{u.full_name || "—"}</TableCell>
+                    <TableCell>{u.email}</TableCell>
+                    <TableCell>
+                      <Select
+                        value={u.roles[0] || "staff"}
+                        onValueChange={(role) => roleMutation.mutate({ user_id: u.id, role })}
+                      >
+                        <SelectTrigger className="w-[140px] h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="super_admin">Super Admin</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="branch_manager">Branch Manager</SelectItem>
+                          <SelectItem value="cashier">Cashier</SelectItem>
+                          <SelectItem value="staff">Staff</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <Select value={prof?.branch_id || "__none"} onValueChange={(v) => branchMutation.mutate({ user_id: u.id, branch_id: v === "__none" ? "" : v })}>
+                        <SelectTrigger className="w-[140px] h-8"><SelectValue placeholder="No branch" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none">No branch (global)</SelectItem>
+                          {(branches || []).map((b: any) => <SelectItem key={b.id} value={b.id}>{b.name} ({b.code})</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={u.is_active ? "default" : "destructive"}>
+                        {u.is_active ? "Active" : "Inactive"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString() : "Never"}
+                    </TableCell>
+                    <TableCell className="text-right space-x-1">
+                      <Button size="sm" variant="outline" onClick={() => setShowReset(u)}>
+                        <KeyRound className="h-3 w-3 mr-1" />Reset
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={u.is_active ? "destructive" : "default"}
+                        onClick={() => toggleMutation.mutate({ user_id: u.id, is_active: !u.is_active })}
+                      >
+                        {u.is_active ? <><UserX className="h-3 w-3 mr-1" />Deactivate</> : <><UserCheck className="h-3 w-3 mr-1" />Activate</>}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Create User Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
@@ -176,7 +266,17 @@ export default function UserManagement() {
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="super_admin">Super Admin</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="branch_manager">Branch Manager</SelectItem>
+                <SelectItem value="cashier">Cashier</SelectItem>
                 <SelectItem value="staff">Staff</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={form.branch_id} onValueChange={(v) => setForm({ ...form, branch_id: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none">No branch (global)</SelectItem>
+                {(branches || []).map((b: any) => <SelectItem key={b.id} value={b.id}>{b.name} ({b.code})</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

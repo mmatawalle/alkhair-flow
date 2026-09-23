@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Package, ShoppingCart, Factory, ArrowRightLeft,
   DollarSign, Receipt, Gift, Beaker, LogOut, Repeat, TrendingUp,
-  Scale, FileText, Store, Truck, Users, Sparkles
+  Scale, FileText, Store, Truck, Users, Sparkles, Star, CreditCard, Landmark
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -14,18 +14,21 @@ import {
 import { Button } from "@/components/ui/button";
 
 const logoSrc = `${import.meta.env.BASE_URL}brand-logo.png`;
-const sections = [
+type NavItem = { title: string; url: string; icon: any; adminOnly?: boolean };
+type Section = { label: string; items: NavItem[] };
+
+const sections: Section[] = [
   {
     label: "Overview",
     items: [
       { title: "Dashboard", url: "/", icon: LayoutDashboard },
-      { title: "Profit & Loss", url: "/profit-loss", icon: TrendingUp },
+      { title: "Profit & Loss", url: "/profit-loss", icon: TrendingUp, adminOnly: true },
     ],
   },
   {
     label: "Inventory",
     items: [
-      { title: "Raw Materials", url: "/raw-materials", icon: Beaker },
+      { title: "Raw Materials", url: "/raw-materials", icon: Beaker, adminOnly: true },
       { title: "Products", url: "/products", icon: Package },
       { title: "Stock Adjust", url: "/stock-adjustments", icon: Scale },
     ],
@@ -33,43 +36,59 @@ const sections = [
   {
     label: "Workflows",
     items: [
-      { title: "Purchases", url: "/purchases", icon: ShoppingCart },
-      { title: "Production", url: "/production", icon: Factory },
-      { title: "Transfers", url: "/transfers", icon: ArrowRightLeft },
+      { title: "Purchases", url: "/purchases", icon: ShoppingCart, adminOnly: true },
+      { title: "Production", url: "/production", icon: Factory, adminOnly: true },
+      { title: "Transfers", url: "/transfers", icon: ArrowRightLeft, adminOnly: true },
       { title: "Sales", url: "/sales", icon: DollarSign },
     ],
   },
   {
     label: "Money",
     items: [
-      { title: "Expenses", url: "/expenses", icon: Receipt },
-      { title: "Gifts", url: "/gifts", icon: Gift },
-      { title: "Internal", url: "/internal", icon: Repeat },
+      { title: "POS & Banks", url: "/pos-banks", icon: CreditCard, adminOnly: true },
+      { title: "Expenses", url: "/expenses", icon: Receipt, adminOnly: true },
+      { title: "Gifts", url: "/gifts", icon: Gift, adminOnly: true },
+      { title: "Internal", url: "/internal", icon: Repeat, adminOnly: true },
+    ],
+  },
+  {
+    label: "Loyalty",
+    items: [
+      { title: "Loyalty Dashboard", url: "/loyalty", icon: Star },
+      { title: "Customers", url: "/loyalty/customers", icon: Users },
+      { title: "Rewards & Rules", url: "/loyalty/rewards", icon: Gift },
     ],
   },
   {
     label: "Vendors",
     items: [
-      { title: "Vendors", url: "/vendors", icon: Store },
-      { title: "Consignments", url: "/vendor-ops", icon: Truck },
+      { title: "Vendors", url: "/vendors", icon: Store, adminOnly: true },
+      { title: "Consignments", url: "/vendor-ops", icon: Truck, adminOnly: true },
     ],
   },
   {
     label: "Admin",
     items: [
-      { title: "AI Drafts", url: "/ai-drafts", icon: Sparkles },
-      { title: "Audit Log", url: "/audit-log", icon: FileText },
+      { title: "AI Drafts", url: "/ai-drafts", icon: Sparkles, adminOnly: true },
+      { title: "Audit Log", url: "/audit-log", icon: FileText, adminOnly: true },
     ],
   },
 ];
-const navItems = sections.flatMap((section) => section.items);
+const allNavItems = sections.flatMap((section) => section.items);
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
-  const { signOut, isSuperAdmin, userFullName } = useAuth();
+  const { signOut, isSuperAdmin, isAdmin, userFullName } = useAuth();
   const isActive = (url: string) => url === "/" ? location.pathname === "/" : location.pathname.startsWith(url);
+  const visibleSections = sections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => !item.adminOnly || isAdmin),
+    }))
+    .filter((section) => section.items.length > 0);
+  const navItems = allNavItems.filter((item) => !item.adminOnly || isAdmin);
 
   if (collapsed) {
     return (
@@ -142,7 +161,7 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="px-2 pb-2 pt-1">
-        {sections.map((section) => (
+        {visibleSections.map((section) => (
           <SidebarGroup key={section.label} className="py-1">
             <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
             <SidebarGroupContent>

@@ -8,8 +8,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Pencil, X } from "lucide-react";
+import { Plus, Trash2, Pencil, X, ShoppingCart, Package } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { MobileList, MobileListItem } from "@/components/MobileList";
+import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -263,45 +265,72 @@ export default function Purchases() {
         <Button onClick={openAdd}><Plus className="mr-2 h-4 w-4" />Record Purchases</Button>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Material</TableHead>
-                  <TableHead className="hidden md:table-cell">Qty</TableHead>
-                  <TableHead>Converted</TableHead>
-                  <TableHead>Cost</TableHead>
-                  <TableHead className="hidden md:table-cell">Cost/Unit</TableHead>
-                  <TableHead className="hidden md:table-cell">Supplier</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow><TableCell colSpan={8} className="text-center">Loading...</TableCell></TableRow>
-                ) : purchases?.map((p: any) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="whitespace-nowrap">{p.purchase_date}</TableCell>
-                    <TableCell className="font-medium">{p.raw_materials?.name}</TableCell>
-                    <TableCell className="hidden md:table-cell">{p.quantity_purchased} {p.purchase_unit}</TableCell>
-                    <TableCell>{p.converted_quantity} {p.raw_materials?.usage_unit}</TableCell>
-                    <TableCell>{fmt(p.total_cost)}</TableCell>
-                    <TableCell className="hidden md:table-cell">{fmt(p.cost_per_usage_unit)}</TableCell>
-                    <TableCell className="hidden md:table-cell">{p.supplier || "—"}</TableCell>
-                    <TableCell className="text-right space-x-1">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(p)} title="Edit"><Pencil className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(p)} title="Delete"><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                    </TableCell>
+      <MobileList>
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground text-center py-8">Loading...</p>
+        ) : ((purchases as any[]) || []).length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">No purchases yet</p>
+        ) : ((purchases as any[]) || []).map((p: any) => {
+          const usageUnit = p.raw_materials?.usage_unit || "unit";
+          return (
+            <MobileListItem
+              key={p.id}
+              avatarFallback={p.raw_materials?.name?.charAt(0) || "P"}
+              supportingIcon={p.raw_materials?.name ? <ShoppingCart className="h-3 w-3" /> : <Package className="h-3 w-3" />}
+              heading={`${p.raw_materials?.name || "—"} · ${fmt(p.total_cost)}`}
+              caption={`${p.purchase_date} · ${p.converted_quantity} ${usageUnit} @ ${fmt(p.cost_per_usage_unit)}`}
+              meta={p.supplier ? `Supplier: ${p.supplier}` : undefined}
+              trailing={<Badge variant="outline" className="text-xs">{p.quantity_purchased} {p.purchase_unit}</Badge>}
+              actions={[
+                { id: "edit", label: "Edit", icon: <Pencil className="h-4 w-4" />, onClick: () => openEdit(p) },
+                { id: "delete", label: "Delete", icon: <Trash2 className="h-4 w-4" />, onClick: () => handleDeleteClick(p), variant: "destructive" },
+              ]}
+            />
+          );
+        })}
+      </MobileList>
+
+      <div className="desktop-table">
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Material</TableHead>
+                    <TableHead className="hidden md:table-cell">Qty</TableHead>
+                    <TableHead>Converted</TableHead>
+                    <TableHead>Cost</TableHead>
+                    <TableHead className="hidden md:table-cell">Cost/Unit</TableHead>
+                    <TableHead className="hidden md:table-cell">Supplier</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow><TableCell colSpan={8} className="text-center">Loading...</TableCell></TableRow>
+                  ) : purchases?.map((p: any) => (
+                    <TableRow key={p.id}>
+                      <TableCell className="whitespace-nowrap">{p.purchase_date}</TableCell>
+                      <TableCell className="font-medium">{p.raw_materials?.name}</TableCell>
+                      <TableCell className="hidden md:table-cell">{p.quantity_purchased} {p.purchase_unit}</TableCell>
+                      <TableCell>{p.converted_quantity} {p.raw_materials?.usage_unit}</TableCell>
+                      <TableCell>{fmt(p.total_cost)}</TableCell>
+                      <TableCell className="hidden md:table-cell">{fmt(p.cost_per_usage_unit)}</TableCell>
+                      <TableCell className="hidden md:table-cell">{p.supplier || "—"}</TableCell>
+                      <TableCell className="text-right space-x-1">
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(p)} title="Edit"><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(p)} title="Delete"><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* MULTI-ADD DIALOG */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>

@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { useSortableTable } from "@/hooks/use-sortable-table";
+import { History } from "lucide-react";
+import { MobileList, MobileListItem } from "@/components/MobileList";
 
 const MODULES = ["all", "sales", "purchases", "production", "transfers", "expenses", "gifts", "internal", "stock_adjustment", "products", "raw_materials", "vendors", "ai_drafts"];
 const ACTION_TYPES = ["all", "create", "edit", "delete", "void", "settle", "stock_adjustment"];
@@ -103,10 +105,32 @@ export default function AuditLog() {
         <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} onClear={() => { setDateFrom(""); setDateTo(""); }} />
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
+      <MobileList>
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground text-center py-8">Loading...</p>
+        ) : sorted.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">No audit records</p>
+        ) : (
+          sorted.map((log: any) => (
+            <MobileListItem
+              key={log.id}
+              avatarFallback={log.performed_by || log.module || "A"}
+              supportingIcon={<History className="h-3 w-3" />}
+              heading={`${log.action_type} · ${log.module}`}
+              caption={`${new Date(log.created_at).toLocaleString()} · by ${log.performed_by || "—"}`}
+              meta={log.note || (log.new_values ? JSON.stringify(log.new_values).slice(0, 80) : "—")}
+              trailing={<Badge variant={actionColor(log.action_type)} className="text-xs">{log.action_type}</Badge>}
+              actions={[]}
+            />
+          ))
+        )}
+      </MobileList>
+
+      <div className="desktop-table">
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
               <TableHeader>
                 <TableRow>
                   <SortableTableHead label="Date/Time" sortKey="created_at" sort={sort} onToggle={toggleSort} />
@@ -135,10 +159,11 @@ export default function AuditLog() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

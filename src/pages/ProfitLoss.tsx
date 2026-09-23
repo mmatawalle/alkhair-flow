@@ -22,9 +22,33 @@ export default function ProfitLoss() {
   const { data: sales } = useQuery({
     queryKey: ["pl_sales", from, to],
     queryFn: async () => {
+      // Prefer normalized sales; keep legacy fallback until full cutover
+      const { data: norm, error: nErr } = await supabase
+        .from("sales")
+        .select("id, total, sale_date, status, sale_items(quantity, line_total, line_cogs, line_profit, product_id, products(name, bottle_size))")
+        .gte("sale_date", from)
+        .lte("sale_date", to)
+        .neq("status", "voided");
+      if (!nErr && (norm as any[])?.length) {
+        // Flatten to legacy-like rows for the existing breakdown logic
+        const flat: any[] = [];
+        for (const sale of norm as any[]) {
+          for (const it of sale.sale_items || []) {
+            flat.push({
+              product_id: it.product_id,
+              quantity_sold: it.quantity,
+              total_revenue: it.line_total,
+              total_cogs: it.line_cogs,
+              profit: it.line_profit,
+              products: it.products,
+            });
+          }
+        }
+        return flat;
+      }
       const { data, error } = await supabase.from("sale_records").select("total_revenue, total_cogs, profit, voided, product_id, quantity_sold, products(name, bottle_size)").gte("sale_date", from).lte("sale_date", to);
       if (error) throw error;
-      return data.filter(s => !s.voided);
+      return data.filter((s: any) => !s.voided);
     },
   });
 

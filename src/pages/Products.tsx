@@ -9,12 +9,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, Package } from "lucide-react";
 import { StockBadge, getProductStockLevel, fmt } from "@/lib/stock-helpers";
+import { MobileList, MobileListItem } from "@/components/MobileList";
 import { useSortableTable } from "@/hooks/use-sortable-table";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import BulkProductForm from "@/components/BulkProductForm";
 import { logAudit } from "@/lib/audit";
+import { fetchBranches, fetchStockMap } from "@/lib/inventory";
 import type { Tables } from "@/integrations/supabase/types";
 
 const DRINK_CATEGORIES = ["Signature Milkshakes", "Fresh & Natural Series", "Native Series"];
@@ -59,14 +61,49 @@ export default function Products() {
     },
   });
 
-  // Add computed total_stock for sorting
-  const enriched = useMemo(() =>
-    products?.map(p => ({
-      ...p,
-      total_stock: Number(p.production_stock) + Number(p.shop_stock) + Number(p.online_shop_stock),
-      stock_level: getProductStockLevel(Number(p.shop_stock) + Number(p.production_stock) + Number(p.online_shop_stock)),
-    })) ?? []
-  , [products]);
+  const { data: branches } = useQuery({ queryKey: ["branches"], queryFn: () => fetchBranches() });
+  const productIds = useMemo(() => (products as any[])?.map((p: any) => p.id) || [], [products]);
+  const { data: stockMap } = useQuery({
+    queryKey: ["stock_levels", productIds.join(",")],
+    queryFn: () => fetchStockMap(productIds),
+    enabled: productIds.length > 0,
+  });
+
+  const stockByProduct = (id: string): Record<string, number> => {
+    const m = stockMap?.get(id);
+    if (!m || !(branches || []).length) return {};
+    const out: Record<string, number> = {};
+    for (const b of branches as any[]) out[b.code] = Number(m.get(b.id) ?? 0);
+    // fallback to legacy columns if levels missing (pre-migration rows)
+    if (Object.values(out).every((v) => v === 0)) {
+      const p = (products as any[])?.find((x: any) => x.id === id) as any;
+      if (p) {
+        out["PROD"] = Number(p.production_stock ?? 0);
+        out["SHOP"] = Number(p.shop_stock ?? 0);
+        out["ONLINE"] = Number(p.online_shop_stock ?? 0);
+      }
+    }
+    return out;
+  };
+
+  // Add computed total_stock for sorting (branch-aware)
+  const enriched = useMemo(() => {
+    if (!products || !stockMap) {
+      return (products as any[])?.map((p: any) => ({
+        ...p,
+        _branch: stockByProduct(p.id),
+        total_stock: Number(p.production_stock) + Number(p.shop_stock) + Number(p.online_shop_stock),
+        stock_level: getProductStockLevel(Number(p.shop_stock) + Number(p.production_stock) + Number(p.online_shop_stock)),
+      })) ?? [];
+    }
+    return (products as any[]).map((p: any) => {
+      const bq = stockByProduct(p.id);
+      const total = Object.values(bq).reduce((s, v) => s + Number(v), 0);
+      const saleable = (bq["SHOP"] ?? 0) + (bq["ONLINE"] ?? 0) + (bq["PROD"] ?? 0);
+      return { ...p, _branch: bq, total_stock: total, stock_level: getProductStockLevel(saleable) };
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products, stockMap, branches]);
 
   // Filtering
   const filtered = useMemo(() => {
@@ -149,53 +186,24 @@ export default function Products() {
         <p className="text-muted-foreground text-center py-8">Loading...</p>
       ) : (
         <>
-          {/* Mobile card list */}
-          <div className="mobile-card-list">
-            {sorted.map(p => {
+          <MobileList>
+            {sorted.map((p: any) => {
               const margin = p.selling_price - p.average_cost_per_unit;
+              const bq = p._branch || stockByProduct(p.id);
               return (
-                <div key={p.id} className="mobile-card-item">
-                  <div className="mobile-card-header">
-                    <div>
-                      <p className="mobile-card-title">{p.name}</p>
-                      <p className="text-xs text-muted-foreground">{p.bottle_size} · {p.category}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={p.is_active ? "default" : "secondary"} className="text-xs">{p.is_active ? "Active" : "Off"}</Badge>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(p)}><Pencil className="h-3.5 w-3.5" /></Button>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <p className="mobile-card-label">Prod</p>
-                      <div className="flex items-center gap-1">
-                        <StockBadge level={getProductStockLevel(Number(p.production_stock))} />
-                        <span className="text-sm">{p.production_stock}</span>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="mobile-card-label">Shop</p>
-                      <div className="flex items-center gap-1">
-                        <StockBadge level={getProductStockLevel(Number(p.shop_stock))} />
-                        <span className="text-sm">{p.shop_stock}</span>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="mobile-card-label">Online</p>
-                      <div className="flex items-center gap-1">
-                        <StockBadge level={getProductStockLevel(Number(p.online_shop_stock))} />
-                        <span className="text-sm">{p.online_shop_stock}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mobile-card-row pt-1">
-                    <span className="text-xs text-muted-foreground">Price: {fmt(p.selling_price)}</span>
-                    <span className={`text-xs font-medium ${margin >= 0 ? "text-emerald-600" : "text-destructive"}`}>Margin: {fmt(margin)}</span>
-                  </div>
-                </div>
+                <MobileListItem
+                  key={p.id}
+                  avatarFallback={p.name}
+                  supportingIcon={<Package className="h-3 w-3" />}
+                  heading={`${p.name} · ${p.bottle_size}`}
+                  caption={`${p.category} · ${fmt(p.selling_price)} · Margin ${fmt(margin)}`}
+                  meta={`Prod ${bq["PROD"] ?? 0} · Shop ${bq["SHOP"] ?? 0} · Online ${bq["ONLINE"] ?? 0}`}
+                  trailing={<Badge variant={p.is_active ? "default" : "secondary"} className="text-xs">{p.is_active ? "Active" : "Off"}</Badge>}
+                  actions={[{ id: "edit", label: "Edit product", icon: <Pencil className="h-4 w-4" />, onClick: () => openEdit(p) }]}
+                />
               );
             })}
-          </div>
+          </MobileList>
 
           {/* Desktop table */}
           <div className="desktop-table">
@@ -218,8 +226,9 @@ export default function Products() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {sorted.map(p => {
+                      {sorted.map((p: any) => {
                         const margin = p.selling_price - p.average_cost_per_unit;
+                        const bq = p._branch || stockByProduct(p.id);
                         return (
                           <TableRow key={p.id}>
                             <TableCell className="font-medium">{p.name}</TableCell>
@@ -227,20 +236,20 @@ export default function Products() {
                             <TableCell>{fmt(p.selling_price)}</TableCell>
                             <TableCell>
                               <div className="flex items-center gap-2">
-                                <StockBadge level={getProductStockLevel(Number(p.production_stock))} />
-                                <span>{p.production_stock}</span>
+                                <StockBadge level={getProductStockLevel(Number(bq["PROD"] ?? 0))} />
+                                <span>{bq["PROD"] ?? 0}</span>
                               </div>
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-2">
-                                <StockBadge level={getProductStockLevel(Number(p.shop_stock))} />
-                                <span>{p.shop_stock}</span>
+                                <StockBadge level={getProductStockLevel(Number(bq["SHOP"] ?? 0))} />
+                                <span>{bq["SHOP"] ?? 0}</span>
                               </div>
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-2">
-                                <StockBadge level={getProductStockLevel(Number(p.online_shop_stock))} />
-                                <span>{p.online_shop_stock}</span>
+                                <StockBadge level={getProductStockLevel(Number(bq["ONLINE"] ?? 0))} />
+                                <span>{bq["ONLINE"] ?? 0}</span>
                               </div>
                             </TableCell>
                             <TableCell><Badge variant={p.is_active ? "default" : "secondary"}>{p.is_active ? "Active" : "Off"}</Badge></TableCell>

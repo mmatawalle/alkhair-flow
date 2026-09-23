@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Pencil, Download, Eye } from "lucide-react";
+import { Plus, Trash2, Pencil, Download, Eye, Wallet, Receipt } from "lucide-react";
 import { ExpenseReceipt } from "@/components/ExpenseReceipt";
 import { downloadCSV } from "@/lib/csv-export";
 import { fmt } from "@/lib/stock-helpers";
@@ -18,6 +18,7 @@ import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { useSortableTable } from "@/hooks/use-sortable-table";
 import { logAudit } from "@/lib/audit";
+import { MobileList, MobileListItem } from "@/components/MobileList";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -143,37 +144,25 @@ export default function Expenses() {
         <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} onClear={() => { setDateFrom(""); setDateTo(""); }} />
       </div>
 
-      {/* Mobile card list */}
-      <div className="mobile-card-list">
+      <MobileList>
         {isLoading ? (
           <p className="text-sm text-muted-foreground text-center py-8">Loading...</p>
         ) : sorted.map((e: any) => (
-          <div key={e.id} className="mobile-card-item">
-            <div className="mobile-card-header">
-              <div>
-                <p className="mobile-card-title capitalize">{e.category_code}</p>
-                <p className="text-xs text-muted-foreground">{e.expense_date}</p>
-              </div>
-              <Badge variant={e.expense_side === "shop" ? "default" : "secondary"} className="capitalize text-xs">{e.expense_side}</Badge>
-            </div>
-            <div className="mobile-card-row">
-              <span className="text-muted-foreground text-sm">{e.description || "—"}</span>
-              <span className="font-semibold text-sm">{fmt(e.amount)}</span>
-            </div>
-            <div className="mobile-card-actions">
-              <Button variant="ghost" size="sm" className="h-8" onClick={() => setReceiptExpense(e)}>
-                <Eye className="h-3.5 w-3.5 mr-1" /> View
-              </Button>
-              <Button variant="ghost" size="sm" className="h-8" onClick={() => openEdit(e)}>
-                <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
-              </Button>
-              <Button variant="ghost" size="sm" className="h-8 text-destructive" onClick={() => setDeleteId(e.id)}>
-                <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
-              </Button>
-            </div>
-          </div>
+          <MobileListItem
+            key={e.id}
+            avatarFallback={e.category_code}
+            supportingIcon={<Wallet className="h-3 w-3" />}
+            heading={<span className="capitalize">{e.category_code} · {fmt(e.amount)}</span>}
+            caption={`${e.expense_date} · ${e.description || "—"} · ${String(e.payment_nature || "").replace(/_/g, " ")}`}
+            trailing={<Badge variant={e.expense_side === "shop" ? "default" : "secondary"} className="capitalize text-xs">{e.expense_side}</Badge>}
+            actions={[
+              { id: "view", label: "View receipt", icon: <Eye className="h-4 w-4" />, onClick: () => setReceiptExpense(e) },
+              { id: "edit", label: "Edit", icon: <Pencil className="h-4 w-4" />, onClick: () => openEdit(e) },
+              { id: "delete", label: "Delete", icon: <Trash2 className="h-4 w-4" />, onClick: () => setDeleteId(e.id), variant: "destructive" },
+            ]}
+          />
         ))}
-      </div>
+      </MobileList>
 
       {/* Desktop table */}
       <div className="desktop-table">

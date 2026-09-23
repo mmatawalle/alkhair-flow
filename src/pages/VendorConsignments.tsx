@@ -9,12 +9,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, FileText } from "lucide-react";
+import { Plus, Trash2, FileText, Package, Eye } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { MobileList, MobileListItem } from "@/components/MobileList";
 import { fmt } from "@/lib/stock-helpers";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { useSortableTable } from "@/hooks/use-sortable-table";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { logAudit } from "@/lib/audit";
+import { fetchBranches, fetchStockMap, getBranchQty, setBranchQty, type Branch } from "@/lib/inventory";
 
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -59,7 +62,17 @@ export default function VendorConsignments() {
     queryFn: async () => { const { data } = await supabase.from("products").select("*").order("name"); return data || []; },
   });
 
-  const vendorProducts = products?.filter(p => p.vendor_id) || [];
+  const vendorProducts = (products as any[])?.filter((p: any) => p.vendor_id) || [];
+  const { data: branches } = useQuery({ queryKey: ["branches-all"], queryFn: async () => { const { data } = await supabase.from("branches").select("*").order("name"); return data || []; } });
+  const productIds = ((products as any[]) || []).map((p: any) => p.id);
+  const { data: stockMap } = useQuery({ queryKey: ["stock_levels", productIds.join(",")], queryFn: () => fetchStockMap(productIds), enabled: productIds.length > 0 });
+  const shopBranch = (branches || []).find((b: any) => b.code === "SHOP");
+  const shopId = shopBranch?.id;
+  const getShopQty = (pid: string) => {
+    const prod = (products as any[])?.find((p: any) => p.id === pid) as any;
+    if (!prod || !shopId) return 0;
+    return getBranchQty(prod, stockMap || new Map(), (branches || []) as Branch[], pid, shopId);
+  };
 
   const { data: consignments, isLoading: loadingC } = useQuery({
     queryKey: ["vendor_consignments"],
@@ -104,23 +117,22 @@ export default function VendorConsignments() {
   const sortP = useSortableTable(filteredP);
   const sortD = useSortableTable(filteredD);
 
-  // Add consignment
+  // Add consignment — lands in SHOP branch
   const addConsignment = useMutation({
     mutationFn: async () => {
       if (!vendorId || !productId || quantity <= 0) throw new Error("Fill all fields");
+      if (!shopBranch) throw new Error("Shop branch not found");
       const { error } = await supabase.from("vendor_consignments").insert({
         vendor_id: vendorId, product_id: productId, quantity, consignment_date: date, note: note || null,
       });
       if (error) throw error;
-      // Add to shop stock
-      const product = products?.find(p => p.id === productId);
-      if (product) {
-        await supabase.from("products").update({ shop_stock: Number(product.shop_stock) + quantity }).eq("id", productId);
-      }
+      const cur = getShopQty(productId);
+      await setBranchQty(productId, shopId!, shopBranch.code, cur + quantity);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["vendor_consignments"] });
       qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["stock_levels"] });
       logAudit({ action_type: "create", module: "vendors", note: "consignment added", new_values: { vendor_id: vendorId, product_id: productId, quantity } });
       setOpen(false); setVendorId(""); setProductId(""); setQuantity(0); setNote("");
       setDate(new Date().toISOString().split("T")[0]);
@@ -149,25 +161,25 @@ export default function VendorConsignments() {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  // Record damage
+  // Record damage — from SHOP
   const addDamage = useMutation({
     mutationFn: async () => {
       if (!dmgVendor || !dmgProduct || dmgQty <= 0) throw new Error("Fill all fields");
-      const product = products?.find(p => p.id === dmgProduct);
-      if (!product) throw new Error("Product not found");
-      if (dmgQty > Number(product.shop_stock)) throw new Error(`Not enough stock. Available: ${product.shop_stock}`);
+      if (!shopBranch) throw new Error("Shop branch not found");
+      const avail = getShopQty(dmgProduct);
+      if (dmgQty > avail) throw new Error(`Not enough stock. Available: ${avail}`);
 
       const { error } = await supabase.from("vendor_damages").insert({
         vendor_id: dmgVendor, product_id: dmgProduct, quantity: dmgQty, reason: dmgReason,
         damage_date: dmgDate, note: dmgNote || null,
       });
       if (error) throw error;
-      // Reduce stock
-      await supabase.from("products").update({ shop_stock: Number(product.shop_stock) - dmgQty }).eq("id", dmgProduct);
+      await setBranchQty(dmgProduct, shopId!, shopBranch.code, avail - dmgQty);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["vendor_damages"] });
       qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["stock_levels"] });
       qc.invalidateQueries({ queryKey: ["vendor_ledger"] });
       logAudit({ action_type: "create", module: "vendors", note: "vendor damage recorded", new_values: { vendor_id: dmgVendor, product_id: dmgProduct, quantity: dmgQty, reason: dmgReason } });
       setDmgOpen(false); setDmgVendor(""); setDmgProduct(""); setDmgQty(0); setDmgReason("damaged"); setDmgNote("");
@@ -181,23 +193,19 @@ export default function VendorConsignments() {
   const deleteMutation = useMutation({
     mutationFn: async ({ id, type }: { id: string; type: string }) => {
       if (type === "consignment") {
-        const rec = consignments?.find(c => c.id === id);
-        if (rec) {
-          const product = products?.find(p => p.id === rec.product_id);
-          if (product) {
-            await supabase.from("products").update({ shop_stock: Math.max(0, Number(product.shop_stock) - Number(rec.quantity)) }).eq("id", rec.product_id);
-          }
+        const rec = (consignments as any[])?.find((c: any) => c.id === id);
+        if (rec && shopBranch) {
+          const cur = getShopQty(rec.product_id);
+          await setBranchQty(rec.product_id, shopId!, shopBranch.code, Math.max(0, cur - Number(rec.quantity)));
         }
         await supabase.from("vendor_consignments").delete().eq("id", id);
       } else if (type === "payment") {
         await supabase.from("vendor_payments").delete().eq("id", id);
       } else if (type === "damage") {
-        const rec = damages?.find(d => d.id === id);
-        if (rec) {
-          const product = products?.find(p => p.id === rec.product_id);
-          if (product) {
-            await supabase.from("products").update({ shop_stock: Number(product.shop_stock) + Number(rec.quantity) }).eq("id", rec.product_id);
-          }
+        const rec = (damages as any[])?.find((d: any) => d.id === id);
+        if (rec && shopBranch) {
+          const cur = getShopQty(rec.product_id);
+          await setBranchQty(rec.product_id, shopId!, shopBranch.code, cur + Number(rec.quantity));
         }
         await supabase.from("vendor_damages").delete().eq("id", id);
       }
@@ -207,6 +215,7 @@ export default function VendorConsignments() {
       qc.invalidateQueries({ queryKey: ["vendor_payments"] });
       qc.invalidateQueries({ queryKey: ["vendor_damages"] });
       qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["stock_levels"] });
       qc.invalidateQueries({ queryKey: ["vendor_ledger"] });
       logAudit({ action_type: "delete", module: "vendors", note: `deleted vendor ${deleteId?.type}`, record_id: deleteId?.id });
       setDeleteId(null);
@@ -240,123 +249,187 @@ export default function VendorConsignments() {
         </TabsList>
 
         <TabsContent value="consignments">
-          <Card>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <SortableTableHead label="Date" sortKey="consignment_date" sort={sortC.sort} onToggle={sortC.toggleSort} />
-                      <TableHead>Vendor</TableHead>
-                      <TableHead>Product</TableHead>
-                      <SortableTableHead label="Qty" sortKey="quantity" sort={sortC.sort} onToggle={sortC.toggleSort} />
-                      <TableHead className="hidden md:table-cell">Note</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {loadingC ? (
-                      <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow>
-                    ) : sortC.sorted.map((c: any) => (
-                      <TableRow key={c.id}>
-                        <TableCell className="whitespace-nowrap">{c.consignment_date}</TableCell>
-                        <TableCell className="font-medium">{c.vendors?.name}</TableCell>
-                        <TableCell>{c.products?.name} <span className="text-xs text-muted-foreground">({c.products?.bottle_size})</span></TableCell>
-                        <TableCell>{c.quantity}</TableCell>
-                        <TableCell className="hidden md:table-cell text-muted-foreground text-sm">{c.note || "—"}</TableCell>
-                        <TableCell>
-                          <Button variant="ghost" size="icon" onClick={() => setDeleteId({ id: c.id, type: "consignment" })}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
+          <MobileList>
+            {loadingC ? (
+              <p className="text-sm text-muted-foreground text-center py-8">Loading...</p>
+            ) : sortC.sorted.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">No consignments.</p>
+            ) : sortC.sorted.map((c: any) => (
+              <MobileListItem
+                key={c.id}
+                avatarFallback={c.products?.name || c.vendors?.name || "C"}
+                supportingIcon={<Package className="h-3 w-3" />}
+                heading={`${c.products?.name || "—"} (${c.products?.bottle_size || "—"})`}
+                caption={`${c.consignment_date} · ${c.vendors?.name || "—"} · Qty ${c.quantity}`}
+                meta={c.note || undefined}
+                trailing={<Badge variant="secondary" className="text-xs">Qty {c.quantity}</Badge>}
+                actions={[{ id: "delete", label: "Delete", icon: <Trash2 className="h-4 w-4" />, onClick: () => setDeleteId({ id: c.id, type: "consignment" }), variant: "destructive" }]}
+              />
+            ))}
+          </MobileList>
+
+          <div className="desktop-table">
+            <Card>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <SortableTableHead label="Date" sortKey="consignment_date" sort={sortC.sort} onToggle={sortC.toggleSort} />
+                        <TableHead>Vendor</TableHead>
+                        <TableHead>Product</TableHead>
+                        <SortableTableHead label="Qty" sortKey="quantity" sort={sortC.sort} onToggle={sortC.toggleSort} />
+                        <TableHead className="hidden md:table-cell">Note</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {loadingC ? (
+                        <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow>
+                      ) : sortC.sorted.map((c: any) => (
+                        <TableRow key={c.id}>
+                          <TableCell className="whitespace-nowrap">{c.consignment_date}</TableCell>
+                          <TableCell className="font-medium">{c.vendors?.name}</TableCell>
+                          <TableCell>{c.products?.name} <span className="text-xs text-muted-foreground">({c.products?.bottle_size})</span></TableCell>
+                          <TableCell>{c.quantity}</TableCell>
+                          <TableCell className="hidden md:table-cell text-muted-foreground text-sm">{c.note || "—"}</TableCell>
+                          <TableCell>
+                            <Button variant="ghost" size="icon" onClick={() => setDeleteId({ id: c.id, type: "consignment" })}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="payments">
-          <Card>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <SortableTableHead label="Date" sortKey="payment_date" sort={sortP.sort} onToggle={sortP.toggleSort} />
-                      <TableHead>Vendor</TableHead>
-                      <SortableTableHead label="Amount" sortKey="amount" sort={sortP.sort} onToggle={sortP.toggleSort} />
-                      <TableHead className="hidden md:table-cell">Note</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {loadingP ? (
-                      <TableRow><TableCell colSpan={5} className="text-center">Loading...</TableCell></TableRow>
-                    ) : sortP.sorted.map((p: any) => (
-                      <TableRow key={p.id}>
-                        <TableCell className="whitespace-nowrap">{p.payment_date}</TableCell>
-                        <TableCell className="font-medium">{p.vendors?.name}</TableCell>
-                        <TableCell>{fmt(p.amount)}</TableCell>
-                        <TableCell className="hidden md:table-cell text-muted-foreground text-sm">{p.note || "—"}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            <Button variant="ghost" size="icon" onClick={() => setReceiptPayment(p)}>
-                              <FileText className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => setDeleteId({ id: p.id, type: "payment" })}>
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </div>
-                        </TableCell>
+          <MobileList>
+            {loadingP ? (
+              <p className="text-sm text-muted-foreground text-center py-8">Loading...</p>
+            ) : sortP.sorted.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">No payments.</p>
+            ) : sortP.sorted.map((p: any) => (
+              <MobileListItem
+                key={p.id}
+                avatarFallback={p.vendors?.name || "P"}
+                supportingIcon={<Package className="h-3 w-3" />}
+                heading={`${p.vendors?.name || "—"} · ${fmt(p.amount)}`}
+                caption={`${p.payment_date} · ${p.note || "—"}`}
+                trailing={<Badge variant="default" className="text-xs">{fmt(p.amount)}</Badge>}
+                actions={[
+                  { id: "view", label: "View receipt", icon: <FileText className="h-4 w-4" />, onClick: () => setReceiptPayment(p) },
+                  { id: "delete", label: "Delete", icon: <Trash2 className="h-4 w-4" />, onClick: () => setDeleteId({ id: p.id, type: "payment" }), variant: "destructive" },
+                ]}
+              />
+            ))}
+          </MobileList>
+
+          <div className="desktop-table">
+            <Card>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <SortableTableHead label="Date" sortKey="payment_date" sort={sortP.sort} onToggle={sortP.toggleSort} />
+                        <TableHead>Vendor</TableHead>
+                        <SortableTableHead label="Amount" sortKey="amount" sort={sortP.sort} onToggle={sortP.toggleSort} />
+                        <TableHead className="hidden md:table-cell">Note</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {loadingP ? (
+                        <TableRow><TableCell colSpan={5} className="text-center">Loading...</TableCell></TableRow>
+                      ) : sortP.sorted.map((p: any) => (
+                        <TableRow key={p.id}>
+                          <TableCell className="whitespace-nowrap">{p.payment_date}</TableCell>
+                          <TableCell className="font-medium">{p.vendors?.name}</TableCell>
+                          <TableCell>{fmt(p.amount)}</TableCell>
+                          <TableCell className="hidden md:table-cell text-muted-foreground text-sm">{p.note || "—"}</TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Button variant="ghost" size="icon" onClick={() => setReceiptPayment(p)}>
+                                <FileText className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => setDeleteId({ id: p.id, type: "payment" })}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="damages">
-          <Card>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <SortableTableHead label="Date" sortKey="damage_date" sort={sortD.sort} onToggle={sortD.toggleSort} />
-                      <TableHead>Vendor</TableHead>
-                      <TableHead>Product</TableHead>
-                      <SortableTableHead label="Qty" sortKey="quantity" sort={sortD.sort} onToggle={sortD.toggleSort} />
-                      <TableHead className="hidden md:table-cell">Reason</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {loadingD ? (
-                      <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow>
-                    ) : sortD.sorted.map((d: any) => (
-                      <TableRow key={d.id}>
-                        <TableCell className="whitespace-nowrap">{d.damage_date}</TableCell>
-                        <TableCell className="font-medium">{d.vendors?.name}</TableCell>
-                        <TableCell>{d.products?.name} <span className="text-xs text-muted-foreground">({d.products?.bottle_size})</span></TableCell>
-                        <TableCell>{d.quantity}</TableCell>
-                        <TableCell className="hidden md:table-cell capitalize">{d.reason}</TableCell>
-                        <TableCell>
-                          <Button variant="ghost" size="icon" onClick={() => setDeleteId({ id: d.id, type: "damage" })}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
+          <MobileList>
+            {loadingD ? (
+              <p className="text-sm text-muted-foreground text-center py-8">Loading...</p>
+            ) : sortD.sorted.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">No damages.</p>
+            ) : sortD.sorted.map((d: any) => (
+              <MobileListItem
+                key={d.id}
+                avatarFallback={d.products?.name || d.vendors?.name || "D"}
+                supportingIcon={<Package className="h-3 w-3" />}
+                heading={`${d.products?.name || "—"} (${d.products?.bottle_size || "—"}) · Qty ${d.quantity}`}
+                caption={`${d.damage_date} · ${d.vendors?.name || "—"} · ${d.reason}`}
+                trailing={<Badge variant={d.reason === "damaged" ? "destructive" : "secondary"} className="text-xs capitalize">{d.reason}</Badge>}
+                actions={[{ id: "delete", label: "Delete", icon: <Trash2 className="h-4 w-4" />, onClick: () => setDeleteId({ id: d.id, type: "damage" }), variant: "destructive" }]}
+              />
+            ))}
+          </MobileList>
+
+          <div className="desktop-table">
+            <Card>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <SortableTableHead label="Date" sortKey="damage_date" sort={sortD.sort} onToggle={sortD.toggleSort} />
+                        <TableHead>Vendor</TableHead>
+                        <TableHead>Product</TableHead>
+                        <SortableTableHead label="Qty" sortKey="quantity" sort={sortD.sort} onToggle={sortD.toggleSort} />
+                        <TableHead className="hidden md:table-cell">Reason</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {loadingD ? (
+                        <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow>
+                      ) : sortD.sorted.map((d: any) => (
+                        <TableRow key={d.id}>
+                          <TableCell className="whitespace-nowrap">{d.damage_date}</TableCell>
+                          <TableCell className="font-medium">{d.vendors?.name}</TableCell>
+                          <TableCell>{d.products?.name} <span className="text-xs text-muted-foreground">({d.products?.bottle_size})</span></TableCell>
+                          <TableCell>{d.quantity}</TableCell>
+                          <TableCell className="hidden md:table-cell capitalize">{d.reason}</TableCell>
+                          <TableCell>
+                            <Button variant="ghost" size="icon" onClick={() => setDeleteId({ id: d.id, type: "damage" })}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
 

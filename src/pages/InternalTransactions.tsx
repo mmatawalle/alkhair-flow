@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, CheckCircle, XCircle, Download, Eye } from "lucide-react";
+import { Plus, CheckCircle, XCircle, Download, Eye, ArrowLeftRight } from "lucide-react";
+import { MobileList, MobileListItem } from "@/components/MobileList";
 import { InternalTransactionReceipt } from "@/components/InternalTransactionReceipt";
 import { fmt } from "@/lib/stock-helpers";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
@@ -23,6 +24,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { branchCodeToLocation, fetchBranches, fetchStockMap, getBranchQty, setBranchQty, type Branch } from "@/lib/inventory";
 
 const SETTLEMENT_METHODS = ["cash", "transfer", "pos", "other"];
 
@@ -46,7 +48,7 @@ export default function InternalTransactions() {
   const [form, setForm] = useState({
     transaction_type: "product" as "product" | "cash",
     product_id: "", quantity: 0, amount: 0, taken_by: "", given_by: "",
-    source_location: "shop", transaction_date: new Date().toISOString().split("T")[0], note: "",
+    branch_id: "", transaction_date: new Date().toISOString().split("T")[0], note: "",
   });
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -67,16 +69,24 @@ export default function InternalTransactions() {
   const { data: transactions, isLoading } = useQuery({
     queryKey: ["internal_transactions"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("internal_transactions").select("*, products(name, bottle_size, selling_price)").order("transaction_date", { ascending: false });
+      const { data, error } = await supabase.from("internal_transactions").select("*, products(name, bottle_size, selling_price), branches(name)").order("transaction_date", { ascending: false });
       if (error) throw error;
       return data;
     },
   });
 
-  const selectedProduct = products?.find(p => p.id === form.product_id);
-  const availableStock = selectedProduct
-    ? (form.source_location === "online_shop" ? Number(selectedProduct.online_shop_stock) : Number(selectedProduct.shop_stock))
+  const { data: branches } = useQuery({ queryKey: ["branches"], queryFn: () => fetchBranches() });
+  const productIds = ((products as any[]) || []).map((p: any) => p.id);
+  const { data: stockMap } = useQuery({
+    queryKey: ["stock_levels", productIds.join(",")],
+    queryFn: () => fetchStockMap(productIds),
+    enabled: productIds.length > 0,
+  });
+  const selectedProduct = (products as any[])?.find((p: any) => p.id === form.product_id) as any;
+  const availableStock = selectedProduct && form.branch_id
+    ? getBranchQty(selectedProduct, stockMap || new Map(), (branches || []) as Branch[], form.product_id, form.branch_id)
     : 0;
+  const branchName = (t: any) => (branches || []).find((b) => b.id === t.branch_id)?.name || (t.source_location ? String(t.source_location).replace("_", " ") : "—");
 
   // Filtering
   const filtered = useMemo(() => {
@@ -109,12 +119,14 @@ export default function InternalTransactions() {
     mutationFn: async () => {
       if (form.transaction_type === "product") {
         if (!selectedProduct) throw new Error("Select a product");
+        if (!form.branch_id) throw new Error("Select a branch");
         if (form.quantity <= 0) throw new Error("Quantity must be > 0");
         if (form.quantity > availableStock) throw new Error(`Not enough stock. Available: ${availableStock}`);
       } else {
         if (form.amount <= 0) throw new Error("Amount must be > 0");
       }
       if (!form.taken_by) throw new Error("Enter who took it");
+      const branch = form.branch_id ? (branches || []).find((b) => b.id === form.branch_id) : null;
 
       const { error } = await supabase.from("internal_transactions").insert({
         transaction_type: form.transaction_type,
@@ -122,25 +134,26 @@ export default function InternalTransactions() {
         quantity: form.transaction_type === "product" ? form.quantity : 0,
         amount: form.transaction_type === "cash" ? form.amount : 0,
         taken_by: form.taken_by, given_by: form.given_by || null,
-        source_location: form.source_location,
+        branch_id: form.transaction_type === "product" ? form.branch_id : null,
+        source_location: branch ? branchCodeToLocation(branch.code) : "shop",
         transaction_date: form.transaction_date, note: form.note || null, status: "pending",
       });
       if (error) throw error;
 
-      if (form.transaction_type === "product" && selectedProduct) {
-        const updateData = form.source_location === "online_shop"
-          ? { online_shop_stock: Number(selectedProduct.online_shop_stock) - form.quantity }
-          : { shop_stock: Number(selectedProduct.shop_stock) - form.quantity };
-        await supabase.from("products").update(updateData).eq("id", form.product_id);
+      if (form.transaction_type === "product" && selectedProduct && branch) {
+        const map = await fetchStockMap([form.product_id]);
+        const cur = Number(map.get(form.product_id)?.get(form.branch_id) ?? availableStock);
+        await setBranchQty(form.product_id, form.branch_id, branch.code, cur - form.quantity);
       }
 
-      await logAudit({ action_type: "create", module: "internal", note: `${form.taken_by} took ${form.transaction_type === "cash" ? fmt(form.amount) : form.quantity + " units"}` });
+      await logAudit({ action_type: "create", module: "internal", note: `${form.taken_by} took ${form.transaction_type === "cash" ? fmt(form.amount) : form.quantity + " units"}${branch ? ` from ${branch.name}` : ""}` });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["internal_transactions"] });
       qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["stock_levels"] });
       setOpen(false);
-      setForm({ transaction_type: "product", product_id: "", quantity: 0, amount: 0, taken_by: "", given_by: "", source_location: "shop", transaction_date: new Date().toISOString().split("T")[0], note: "" });
+      setForm({ transaction_type: "product", product_id: "", quantity: 0, amount: 0, taken_by: "", given_by: "", branch_id: "", transaction_date: new Date().toISOString().split("T")[0], note: "" });
       toast({ title: "Transaction recorded ✓" });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -242,76 +255,112 @@ export default function InternalTransactions() {
         <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} onClear={() => { setDateFrom(""); setDateTo(""); }} />
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <SortableTableHead label="Date" sortKey="transaction_date" sort={sort} onToggle={toggleSort} />
-                  <TableHead>Type</TableHead>
-                  <TableHead>Item / Amount</TableHead>
-                  <TableHead>Value</TableHead>
-                  <SortableTableHead label="Taken By" sortKey="taken_by" sort={sort} onToggle={toggleSort} />
-                  <TableHead>Given By</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="hidden md:table-cell">Settled Via</TableHead>
-                  <TableHead className="hidden md:table-cell">Settled Amt</TableHead>
-                  <TableHead className="hidden lg:table-cell">Date Settled</TableHead>
-                  <TableHead className="hidden lg:table-cell">Received By</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow><TableCell colSpan={12} className="text-center">Loading...</TableCell></TableRow>
-                ) : sorted.length === 0 ? (
-                  <TableRow><TableCell colSpan={12} className="text-center text-muted-foreground">No transactions</TableCell></TableRow>
-                ) : sorted.map((t: any) => (
-                  <TableRow key={t.id} className={t.voided ? "opacity-50" : ""}>
-                    <TableCell className="whitespace-nowrap">{t.transaction_date}</TableCell>
-                    <TableCell><Badge variant="outline" className="capitalize text-xs">{t.transaction_type}</Badge></TableCell>
-                    <TableCell className="font-medium">
-                      {t.transaction_type === "product"
-                        ? <span>{t.products?.name} ({t.products?.bottle_size}) × {t.quantity}</span>
-                        : fmt(t.amount)}
-                    </TableCell>
-                    <TableCell className="font-medium">{fmt(getValue(t))}</TableCell>
-                    <TableCell>{t.taken_by || "—"}</TableCell>
-                    <TableCell>{t.given_by || "—"}</TableCell>
-                    <TableCell>
-                      <Badge variant={t.voided ? "secondary" : t.status === "pending" ? "destructive" : "default"}>
-                        {t.voided ? "Voided" : t.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell capitalize">{t.settlement_method || "—"}</TableCell>
-                    <TableCell className="hidden md:table-cell">{t.amount_settled ? fmt(t.amount_settled) : "—"}</TableCell>
-                    <TableCell className="hidden lg:table-cell">{t.date_settled || "—"}</TableCell>
-                    <TableCell className="hidden lg:table-cell">{t.received_by || "—"}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" title="View Receipt" onClick={() => setReceiptTransaction(t)}>
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        {!t.voided && t.status === "pending" && (
-                          <>
-                            <Button variant="ghost" size="icon" title="Settle" onClick={() => openSettleForm(t.id)}>
-                              <CheckCircle className="h-4 w-4 text-emerald-600" />
-                            </Button>
-                            <Button variant="ghost" size="icon" title="Delete" onClick={() => setDeleteId(t.id)}>
-                              <XCircle className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </TableCell>
+      <MobileList>
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground text-center py-8">Loading...</p>
+        ) : sorted.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">No transactions</p>
+        ) : sorted.map((t: any) => {
+          const value = getValue(t);
+          const headingProduct = t.transaction_type === "product" ? `${t.products?.name || "—"} (${t.products?.bottle_size || "—"}) × ${t.quantity}` : `Cash · ${fmt(t.amount)}`;
+          return (
+            <MobileListItem
+              key={t.id}
+              avatarFallback={t.transaction_type}
+              supportingIcon={<ArrowLeftRight className="h-3 w-3" />}
+              heading={`${t.transaction_type} · ${headingProduct}`}
+              caption={`${t.transaction_date} · ${t.taken_by || "—"}→${t.given_by || "—"} · ${branchName(t)}`}
+              trailing={
+                <div className="flex flex-col items-end gap-1">
+                  <Badge variant={t.voided ? "secondary" : t.status === "pending" ? "destructive" : "default"} className="text-xs capitalize">{t.voided ? "Voided" : t.status}</Badge>
+                  <span className="text-xs font-semibold">{fmt(value)}</span>
+                </div>
+              }
+              className={t.voided ? "opacity-60" : ""}
+              actions={[
+                { id: "view", label: "View receipt", icon: <Eye className="h-4 w-4" />, onClick: () => setReceiptTransaction(t) },
+                ...(!t.voided && t.status === "pending" ? [
+                  { id: "settle", label: "Settle", icon: <CheckCircle className="h-4 w-4" />, onClick: () => openSettleForm(t.id) } as const,
+                  { id: "delete", label: "Delete", icon: <XCircle className="h-4 w-4" />, onClick: () => setDeleteId(t.id), variant: "destructive" as const },
+                ] : []),
+              ]}
+            />
+          );
+        })}
+      </MobileList>
+
+      <div className="desktop-table">
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <SortableTableHead label="Date" sortKey="transaction_date" sort={sort} onToggle={toggleSort} />
+                    <TableHead>Type</TableHead>
+                    <TableHead>Item / Amount</TableHead>
+                    <TableHead>Value</TableHead>
+                    <SortableTableHead label="Taken By" sortKey="taken_by" sort={sort} onToggle={toggleSort} />
+                    <TableHead>Given By</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="hidden md:table-cell">Settled Via</TableHead>
+                    <TableHead className="hidden md:table-cell">Settled Amt</TableHead>
+                    <TableHead className="hidden lg:table-cell">Date Settled</TableHead>
+                    <TableHead className="hidden lg:table-cell">Received By</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow><TableCell colSpan={12} className="text-center">Loading...</TableCell></TableRow>
+                  ) : sorted.length === 0 ? (
+                    <TableRow><TableCell colSpan={12} className="text-center text-muted-foreground">No transactions</TableCell></TableRow>
+                  ) : sorted.map((t: any) => (
+                    <TableRow key={t.id} className={t.voided ? "opacity-50" : ""}>
+                      <TableCell className="whitespace-nowrap">{t.transaction_date}</TableCell>
+                      <TableCell><Badge variant="outline" className="capitalize text-xs">{t.transaction_type}</Badge></TableCell>
+                      <TableCell className="font-medium">
+                        {t.transaction_type === "product"
+                          ? <span>{t.products?.name} ({t.products?.bottle_size}) × {t.quantity}</span>
+                          : fmt(t.amount)}
+                      </TableCell>
+                      <TableCell className="font-medium">{fmt(getValue(t))}</TableCell>
+                      <TableCell>{t.taken_by || "—"}</TableCell>
+                      <TableCell>{t.given_by || "—"}</TableCell>
+                      <TableCell>
+                        <Badge variant={t.voided ? "secondary" : t.status === "pending" ? "destructive" : "default"}>
+                          {t.voided ? "Voided" : t.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell capitalize">{t.settlement_method || "—"}</TableCell>
+                      <TableCell className="hidden md:table-cell">{t.amount_settled ? fmt(t.amount_settled) : "—"}</TableCell>
+                      <TableCell className="hidden lg:table-cell">{t.date_settled || "—"}</TableCell>
+                      <TableCell className="hidden lg:table-cell">{t.received_by || "—"}</TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" title="View Receipt" onClick={() => setReceiptTransaction(t)}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          {!t.voided && t.status === "pending" && (
+                            <>
+                              <Button variant="ghost" size="icon" title="Settle" onClick={() => openSettleForm(t.id)}>
+                                <CheckCircle className="h-4 w-4 text-emerald-600" />
+                              </Button>
+                              <Button variant="ghost" size="icon" title="Delete" onClick={() => setDeleteId(t.id)}>
+                                <XCircle className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Add Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
@@ -337,16 +386,15 @@ export default function InternalTransactions() {
                   </SelectContent>
                 </Select>
                 <div>
-                  <label className="text-sm text-muted-foreground">Take from</label>
-                  <Select value={form.source_location} onValueChange={v => setForm({ ...form, source_location: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <label className="text-sm text-muted-foreground">Take from (branch)</label>
+                  <Select value={form.branch_id} onValueChange={v => setForm({ ...form, branch_id: v })}>
+                    <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="shop">Shop</SelectItem>
-                      <SelectItem value="online_shop">Online Shop</SelectItem>
+                      {(branches || []).map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
-                {selectedProduct && <p className="text-sm text-muted-foreground">Available: <strong>{availableStock}</strong></p>}
+                {selectedProduct && form.branch_id && <p className="text-sm text-muted-foreground">Available at {(branches || []).find((b) => b.id === form.branch_id)?.name}: <strong>{availableStock}</strong></p>}
                 <div>
                   <label className="text-sm text-muted-foreground">Quantity</label>
                   <Input type="number" min={1} value={form.quantity || ""} onChange={e => setForm({ ...form, quantity: Number(e.target.value) })} required />

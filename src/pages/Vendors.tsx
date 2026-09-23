@@ -8,7 +8,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, Store, Users } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { MobileList, MobileListItem } from "@/components/MobileList";
 import { fmt } from "@/lib/stock-helpers";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { useSortableTable } from "@/hooks/use-sortable-table";
@@ -116,7 +118,30 @@ export default function Vendors() {
 
       <Input placeholder="Search vendors..." value={searchText} onChange={e => setSearchText(e.target.value)} className="w-[200px] h-8 text-sm" />
 
-      <Card>
+      <MobileList>
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground text-center py-8">Loading...</p>
+        ) : sorted.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">No vendors found.</p>
+        ) : sorted.map((v: any) => {
+            const l = getLedger(v.id);
+            return (
+              <MobileListItem
+                key={v.id}
+                avatarFallback={v.name}
+                supportingIcon={v.name?.toLowerCase().includes("store") || v.name?.toLowerCase().includes("shop") ? <Store className="h-3 w-3" /> : <Users className="h-3 w-3" />}
+                heading={v.name}
+                caption={`${v.default_commission_rate}% · Sales ${fmt(l.totalSales)} · Commission ${fmt(l.totalCommission)}`}
+                meta={`Balance ${fmt(l.balance)}`}
+                trailing={<Badge variant={l.balance > 0 ? "destructive" : "default"} className="text-xs">{fmt(l.balance)}</Badge>}
+                actions={[{ id: "edit", label: "Edit", icon: <Pencil className="h-4 w-4" />, onClick: () => openEdit(v) }]}
+              />
+            );
+          })}
+      </MobileList>
+
+      <div className="desktop-table">
+        <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
@@ -157,6 +182,7 @@ export default function Vendors() {
           </div>
         </CardContent>
       </Card>
+      </div>
 
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
         <DialogContent>

@@ -14,20 +14,21 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, SlidersHorizontal, Eye } from "lucide-react";
+import { MobileList, MobileListItem } from "@/components/MobileList";
 
 import { logAudit } from "@/lib/audit";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { useSortableTable } from "@/hooks/use-sortable-table";
+import { branchCodeToLocation, fetchBranches, fetchStockMap, getBranchQty, setBranchQty, type Branch } from "@/lib/inventory";
 
 const REASONS = ["opening_stock", "correction", "damage_spoilage", "recount_difference", "house_use", "promo_free_use"];
-const LOCATIONS = ["production", "shop", "online_shop"];
 
 export default function StockAdjustments() {
   const [open, setOpen] = useState(false);
   const [itemType, setItemType] = useState<"product" | "raw_material">("product");
   const [itemId, setItemId] = useState("");
-  const [location, setLocation] = useState("shop");
+  const [branchId, setBranchId] = useState("");
   const [newQty, setNewQty] = useState<number | "">(0);
   const [reason, setReason] = useState("correction");
   const [affectCost, setAffectCost] = useState(false);
@@ -45,6 +46,15 @@ export default function StockAdjustments() {
       if (error) throw error;
       return data;
     },
+  });
+
+  const { data: branches } = useQuery({ queryKey: ["branches"], queryFn: () => fetchBranches() });
+
+  const productIds = ((products as any[]) || []).map((p) => p.id);
+  const { data: stockMap } = useQuery({
+    queryKey: ["stock_levels", productIds.join(",")],
+    queryFn: () => fetchStockMap(productIds),
+    enabled: productIds.length > 0,
   });
 
   const { data: materials } = useQuery({
@@ -66,27 +76,31 @@ export default function StockAdjustments() {
   });
 
   const selectedItem = itemType === "product"
-    ? products?.find(p => p.id === itemId)
-    : materials?.find(m => m.id === itemId);
+    ? (products as any[])?.find((p: any) => p.id === itemId)
+    : materials?.find((m: any) => m.id === itemId);
+
+  const selectedBranch = (branches || []).find((b) => b.id === branchId);
 
   const oldQty = (() => {
     if (!selectedItem) return 0;
     if (itemType === "raw_material") return Number((selectedItem as any).current_stock);
-    const p = selectedItem as any;
-    if (location === "production") return Number(p.production_stock);
-    if (location === "online_shop") return Number(p.online_shop_stock);
-    return Number(p.shop_stock);
+    if (!branchId) return 0;
+    return getBranchQty(selectedItem as any, stockMap || new Map(), (branches || []) as Branch[], itemId, branchId);
   })();
+
+  const branchName = (adj: any) =>
+    (branches || []).find((b) => b.id === adj.branch_id)?.name ||
+    (adj.location ? String(adj.location).replace("_", " ") : "—");
 
   const numericNewQty = newQty === "" ? 0 : newQty;
   const adjustmentAmount = numericNewQty - oldQty;
 
   const getItemName = (adj: any) => {
     if (adj.item_type === "product") {
-      const p = products?.find(pr => pr.id === adj.item_id);
+      const p = ((products as any[]) || []).find((pr: any) => pr.id === adj.item_id);
       return p ? `${p.name} (${p.bottle_size})` : adj.item_id;
     }
-    const m = materials?.find(mat => mat.id === adj.item_id);
+    const m = materials?.find((mat: any) => mat.id === adj.item_id);
     return m ? m.name : adj.item_id;
   };
 
@@ -94,7 +108,7 @@ export default function StockAdjustments() {
 
   const resetForm = () => {
     setItemId(""); setNewQty(0); setNote(""); setAdjustedBy("");
-    setAffectCost(false); setReason("correction"); setLocation("shop");
+    setAffectCost(false); setReason("correction"); setBranchId("");
     setAdjustDate(new Date().toISOString().split("T")[0]);
   };
 
@@ -102,9 +116,13 @@ export default function StockAdjustments() {
     mutationFn: async () => {
       if (!itemId) throw new Error("Select an item");
       if (!adjustedBy) throw new Error("Enter who adjusted");
+      if (itemType === "product" && !branchId) throw new Error("Select a branch");
 
+      const branch = (branches || []).find((b) => b.id === branchId);
       await supabase.from("stock_adjustments").insert({
-        item_type: itemType, item_id: itemId, location,
+        item_type: itemType, item_id: itemId,
+        location: branch ? branchCodeToLocation(branch.code) : "shop",
+        branch_id: itemType === "product" ? branchId : null,
         old_quantity: oldQty, new_quantity: numericNewQty,
         adjustment_amount: adjustmentAmount, reason,
         affect_average_cost: affectCost,
@@ -113,12 +131,8 @@ export default function StockAdjustments() {
       });
 
       // Apply stock change
-      if (itemType === "product") {
-        const updateData: Record<string, number> = {};
-        if (location === "production") updateData.production_stock = numericNewQty;
-        else if (location === "online_shop") updateData.online_shop_stock = numericNewQty;
-        else updateData.shop_stock = numericNewQty;
-        await supabase.from("products").update(updateData as any).eq("id", itemId);
+      if (itemType === "product" && branch) {
+        await setBranchQty(itemId, branchId, branch.code, numericNewQty);
       } else {
         await supabase.from("raw_materials").update({ current_stock: numericNewQty }).eq("id", itemId);
       }
@@ -128,13 +142,14 @@ export default function StockAdjustments() {
         module: "stock_adjustment",
         record_id: itemId,
         old_values: { quantity: oldQty },
-        new_values: { quantity: numericNewQty, reason, location },
+        new_values: { quantity: numericNewQty, reason, branch: branch?.name },
         note: `${adjustedBy}: ${reason.replace(/_/g, " ")}`,
       });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["stock_adjustments"] });
       qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["stock_levels"] });
       qc.invalidateQueries({ queryKey: ["raw_materials"] });
       setOpen(false); resetForm();
       toast({ title: "Stock adjusted ✓" });
@@ -147,19 +162,28 @@ export default function StockAdjustments() {
       // Reverse the stock change
       const reverseAmount = -Number(adj.adjustment_amount);
       if (adj.item_type === "product") {
-        const { data: product } = await supabase.from("products").select("*").eq("id", adj.item_id).single();
-        if (product) {
-          const updateData: Record<string, number> = {};
-          const loc = adj.location as string;
-          if (loc === "production") updateData.production_stock = Number(product.production_stock) + reverseAmount;
-          else if (loc === "online_shop") updateData.online_shop_stock = Number(product.online_shop_stock) + reverseAmount;
-          else updateData.shop_stock = Number(product.shop_stock) + reverseAmount;
+        const map = await fetchStockMap([adj.item_id]);
+        const branch = (branches || []).find((b) => b.id === adj.branch_id);
+        if (adj.branch_id && branch) {
+          const cur = Number(map.get(adj.item_id)?.get(adj.branch_id) ?? adj.new_quantity);
+          const next = cur + reverseAmount;
+          if (next < 0) throw new Error("Cannot delete: would result in negative stock");
+          await setBranchQty(adj.item_id, adj.branch_id, branch.code, next);
+        } else {
+          // Legacy row without branch link: fall back to legacy columns
+          const { data: product } = await supabase.from("products").select("*").eq("id", adj.item_id).single();
+          if (product) {
+            const updateData: Record<string, number> = {};
+            const loc = adj.location as string;
+            if (loc === "production") updateData.production_stock = Number((product as any).production_stock) + reverseAmount;
+            else if (loc === "online_shop") updateData.online_shop_stock = Number((product as any).online_shop_stock) + reverseAmount;
+            else updateData.shop_stock = Number((product as any).shop_stock) + reverseAmount;
 
-          // Prevent negative stock
-          const newVal = Object.values(updateData)[0];
-          if (newVal < 0) throw new Error("Cannot delete: would result in negative stock");
+            const newVal = Object.values(updateData)[0];
+            if (newVal < 0) throw new Error("Cannot delete: would result in negative stock");
 
-          await supabase.from("products").update(updateData as any).eq("id", adj.item_id);
+            await supabase.from("products").update(updateData as any).eq("id", adj.item_id);
+          }
         }
       } else {
         const { data: mat } = await supabase.from("raw_materials").select("*").eq("id", adj.item_id).single();
@@ -197,46 +221,31 @@ export default function StockAdjustments() {
         <Button onClick={() => { resetForm(); setOpen(true); }} className="w-full sm:w-auto"><Plus className="mr-2 h-4 w-4" />New Adjustment</Button>
       </div>
 
-      {/* Mobile card list */}
-      <div className="mobile-card-list">
+      <MobileList>
         {isLoading ? (
           <p className="text-sm text-muted-foreground text-center py-8">Loading...</p>
         ) : sorted.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">No adjustments yet</p>
         ) : sorted.map((adj: any) => (
-          <div key={adj.id} className="mobile-card-item">
-            <div className="mobile-card-header">
-              <div>
-                <p className="mobile-card-title">{getItemName(adj)}</p>
-                <p className="text-xs text-muted-foreground">{adj.adjustment_date} · <span className="capitalize">{adj.item_type.replace("_", " ")}</span></p>
-              </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-destructive" onClick={() => setDeleteTarget(adj)}>
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <p className="mobile-card-label">Old</p>
-                <p className="mobile-card-value">{adj.old_quantity}</p>
-              </div>
-              <div>
-                <p className="mobile-card-label">New</p>
-                <p className="mobile-card-value">{adj.new_quantity}</p>
-              </div>
-              <div>
-                <p className="mobile-card-label">Change</p>
-                <p className={`mobile-card-value ${Number(adj.adjustment_amount) >= 0 ? "text-emerald-600" : "text-destructive"}`}>
-                  {Number(adj.adjustment_amount) >= 0 ? "+" : ""}{adj.adjustment_amount}
-                </p>
-              </div>
-            </div>
-            <div className="mobile-card-row text-xs">
-              <span className="capitalize text-muted-foreground">{adj.reason?.replace(/_/g, " ")} · {adj.location?.replace("_", " ")}</span>
-              <span className="text-muted-foreground">{adj.adjusted_by || "—"}</span>
-            </div>
-          </div>
+          <MobileListItem
+            key={adj.id}
+            avatarFallback={(getItemName(adj)?.charAt(0) || "A").toUpperCase()}
+            supportingIcon={<SlidersHorizontal className="h-3 w-3" />}
+            heading={getItemName(adj)}
+            caption={`${adj.created_at || adj.adjustment_date} · ${adj.reason?.replace(/_/g, " ")}`}
+            meta={`${adj.old_quantity} → ${adj.new_quantity} · ${branchName(adj)}${adj.adjusted_by ? ` · ${adj.adjusted_by}` : ""}`}
+            trailing={
+              <Badge variant="outline" className={Number(adj.adjustment_amount) >= 0 ? "text-emerald-600 border-emerald-200" : "text-destructive border-destructive/20"}>
+                {Number(adj.adjustment_amount) >= 0 ? "+" : ""}{adj.adjustment_amount}
+              </Badge>
+            }
+            actions={[
+              { id: "view", label: "View", icon: <Eye className="h-4 w-4" />, onClick: () => {} },
+              { id: "delete", label: "Delete & Reverse", icon: <Trash2 className="h-4 w-4" />, onClick: () => setDeleteTarget(adj), variant: "destructive" },
+            ]}
+          />
         ))}
-      </div>
+      </MobileList>
 
       {/* Desktop table */}
       <div className="desktop-table">
@@ -267,7 +276,7 @@ export default function StockAdjustments() {
                       <TableCell>{adj.adjustment_date}</TableCell>
                       <TableCell><Badge variant="outline" className="capitalize text-xs">{adj.item_type.replace("_", " ")}</Badge></TableCell>
                       <TableCell className="font-medium">{getItemName(adj)}</TableCell>
-                      <TableCell className="capitalize">{adj.location.replace("_", " ")}</TableCell>
+                      <TableCell className="capitalize">{branchName(adj)}</TableCell>
                       <TableCell>{adj.old_quantity} → {adj.new_quantity}</TableCell>
                       <TableCell className={Number(adj.adjustment_amount) >= 0 ? "text-emerald-600" : "text-destructive"}>
                         {Number(adj.adjustment_amount) >= 0 ? "+" : ""}{adj.adjustment_amount}
@@ -295,7 +304,7 @@ export default function StockAdjustments() {
           <form onSubmit={e => { e.preventDefault(); saveMutation.mutate(); }} className="space-y-3">
             <div>
               <label className="text-sm text-muted-foreground">Item Type</label>
-              <Select value={itemType} onValueChange={(v: any) => { setItemType(v); setItemId(""); if (v === "raw_material") setLocation("production"); else setLocation("shop"); }}>
+              <Select value={itemType} onValueChange={(v: any) => { setItemType(v); setItemId(""); setBranchId(""); }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="product">Product</SelectItem>
@@ -310,8 +319,8 @@ export default function StockAdjustments() {
                 <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
                 <SelectContent>
                   {itemType === "product"
-                    ? products?.map(p => <SelectItem key={p.id} value={p.id}>{p.name} ({p.bottle_size})</SelectItem>)
-                    : materials?.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)
+                    ? (products as any[])?.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name} ({p.bottle_size})</SelectItem>)
+                    : materials?.map((m: any) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)
                   }
                 </SelectContent>
               </Select>
@@ -319,11 +328,11 @@ export default function StockAdjustments() {
 
             {itemType === "product" && (
               <div>
-                <label className="text-sm text-muted-foreground">Location</label>
-                <Select value={location} onValueChange={setLocation}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <label className="text-sm text-muted-foreground">Branch</label>
+                <Select value={branchId} onValueChange={setBranchId}>
+                  <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
                   <SelectContent>
-                    {LOCATIONS.map(l => <SelectItem key={l} value={l} className="capitalize">{l.replace("_", " ")}</SelectItem>)}
+                    {(branches || []).map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -332,7 +341,7 @@ export default function StockAdjustments() {
             {itemType === "raw_material" && (
               <div>
                 <label className="text-sm text-muted-foreground">Location</label>
-                <Input value="Production" disabled className="bg-muted" />
+                <Input value="Production — raw materials are central" disabled className="bg-muted" />
               </div>
             )}
 

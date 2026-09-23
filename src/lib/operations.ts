@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { adjustBranchQty, fetchBranches, fetchStockMap, seedBranchIds, setBranchQty } from "@/lib/inventory";
 
 export type PurchaseDraftItem = {
   raw_material_id: string;
@@ -90,40 +91,42 @@ export async function postTransferDraft(
   transferDate: string,
   note?: string,
 ) {
-  const productRes = await supabase.from("products").select("*").eq("id", productId).single();
+  const [branches, productRes] = await Promise.all([
+    fetchBranches(),
+    supabase.from("products").select("*").eq("id", productId).single(),
+  ]);
   if (productRes.error) throw productRes.error;
 
   const product = productRes.data;
   if (quantity <= 0) throw new Error("Quantity must be greater than zero");
-  if (quantity > Number(product.production_stock)) {
-    throw new Error(`Not enough production stock. Available: ${product.production_stock}`);
-  }
 
-  const prefixedNote = note
-    ? `[-> ${destination === "online_shop" ? "Online Shop" : "Shop"}] ${note}`
-    : `[-> ${destination === "online_shop" ? "Online Shop" : "Shop"}]`;
+  const { prod, shop, online } = seedBranchIds(branches);
+  const destId = destination === "online_shop" ? online : shop;
+  const destCode = destination === "online_shop" ? "ONLINE" : "SHOP";
+  const destBranch = branches.find((b) => b.id === destId)!;
+
+  const stockMap = await fetchStockMap([productId]);
+  const prodQty = Number(stockMap.get(productId)?.get(prod) ?? product.production_stock);
+  if (quantity > prodQty) {
+    throw new Error(`Not enough production stock. Available: ${prodQty}`);
+  }
+  const destQty = Number(
+    stockMap.get(productId)?.get(destId) ??
+      (destination === "online_shop" ? product.online_shop_stock : product.shop_stock),
+  );
 
   const insertRes = await supabase.from("transfer_records").insert({
     product_id: productId,
     quantity_transferred: quantity,
     transfer_date: transferDate,
-    note: prefixedNote,
+    note: note || null,
+    from_branch_id: prod,
+    to_branch_id: destId,
   });
   if (insertRes.error) throw insertRes.error;
 
-  const updateData =
-    destination === "online_shop"
-      ? {
-          production_stock: Number(product.production_stock) - quantity,
-          online_shop_stock: Number(product.online_shop_stock) + quantity,
-        }
-      : {
-          production_stock: Number(product.production_stock) - quantity,
-          shop_stock: Number(product.shop_stock) + quantity,
-        };
-
-  const updateRes = await supabase.from("products").update(updateData).eq("id", productId);
-  if (updateRes.error) throw updateRes.error;
+  await adjustBranchQty(productId, prod, "PROD", -quantity, prodQty);
+  await adjustBranchQty(productId, destId, destBranch.code, quantity, destQty);
 }
 
 export async function postProductionDraft(
@@ -145,6 +148,10 @@ export async function postProductionDraft(
 
   const productRows = productsRes.data;
   const materialRows = materialsRes.data;
+
+  const branches = await fetchBranches();
+  const prodBranchId = seedBranchIds(branches).prod;
+  const stockMap = await fetchStockMap(validProducts.map((e) => e.product_id));
 
   for (const usage of validMaterials) {
     const material = materialRows.find((row) => row.id === usage.raw_material_id);
@@ -219,8 +226,10 @@ export async function postProductionDraft(
     const product = productRows.find((row) => row.id === entry.product_id);
     if (!product) throw new Error("Invalid product");
 
-    const totalExisting =
-      Number(product.production_stock) + Number(product.shop_stock) + Number(product.online_shop_stock);
+    const levels = stockMap.get(entry.product_id);
+    const totalExisting = levels
+      ? [...levels.values()].reduce((s, q) => s + Number(q), 0)
+      : Number(product.production_stock) + Number(product.shop_stock) + Number(product.online_shop_stock);
     const oldAvg = Number(product.average_cost_per_unit);
     const entryCost = costPerUnit * Number(entry.quantity);
     const newAvg =
@@ -231,13 +240,16 @@ export async function postProductionDraft(
     const productUpdate = await supabase
       .from("products")
       .update({
-        production_stock: Number(product.production_stock) + Number(entry.quantity),
         latest_cost_per_unit: costPerUnit,
         average_cost_per_unit: newAvg,
       })
       .eq("id", entry.product_id);
 
     if (productUpdate.error) throw productUpdate.error;
+
+    // Finished goods land in the Production branch (dual-writes legacy column)
+    const prodQty = Number(levels?.get(prodBranchId) ?? product.production_stock);
+    await setBranchQty(entry.product_id, prodBranchId, "PROD", prodQty + Number(entry.quantity));
   }
 }
 
