@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Copy, RefreshCw, Minus, Star, User, Eye } from "lucide-react";
+import { Plus, Copy, RefreshCw, Minus, Star, User, Eye, Share2 } from "lucide-react";
 import { fmt } from "@/lib/stock-helpers";
 import { MobileList, MobileListItem } from "@/components/MobileList";
 import { fetchBranches } from "@/lib/inventory";
@@ -24,7 +24,7 @@ export default function LoyaltyCustomers() {
   const [search, setSearch] = useState("");
   const [showRegister, setShowRegister] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [form, setForm] = useState({ full_name: "", phone: "", email: "", birthday: "", branch_created_id: "" });
+  const [form, setForm] = useState({ full_name: "", phone: "", email: "", birthday: "", branch_created_id: "", area: "", age_range: "", gender: "", marketing_consent: false });
   const [adjust, setAdjust] = useState({ points: "", reason: "" });
   const [redeemId, setRedeemId] = useState("");
 
@@ -127,11 +127,15 @@ export default function LoyaltyCustomers() {
       email: form.email || null,
       birthday: form.birthday || null,
       branch_created_id: form.branch_created_id || null,
+      area: form.area || null,
+      age_range: form.age_range || null,
+      gender: form.gender || null,
+      marketing_consent: form.marketing_consent,
     }),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ["loyalty_customers"] });
       setShowRegister(false);
-      setForm({ full_name: "", phone: "", email: "", birthday: "", branch_created_id: "" });
+      setForm({ full_name: "", phone: "", email: "", birthday: "", branch_created_id: "", area: "", age_range: "", gender: "", marketing_consent: false });
       toast({ title: "Customer registered ✓", description: `Card token: ${res.token}` });
       setDetailId(res.customer.id);
     },
@@ -208,9 +212,25 @@ export default function LoyaltyCustomers() {
     <div className="page-container">
       <div className="page-header">
         <h2 className="page-title">Loyalty Customers</h2>
-        <Button onClick={() => setShowRegister(true)} className="w-full sm:w-auto">
-          <Plus className="mr-2 h-4 w-4" />Register Customer
-        </Button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button
+            variant="outline"
+            className="flex-1 sm:flex-none"
+            onClick={() => {
+              const base = import.meta.env.BASE_URL || "/";
+              const url = window.location.origin + (base.endsWith("/") ? base : base + "/") + "join";
+              navigator.clipboard?.writeText(url).then(
+                () => toast({ title: "Join link copied", description: url }),
+                () => toast({ title: "Join link", description: url }),
+              );
+            }}
+          >
+            <Share2 className="mr-2 h-4 w-4" />Join link
+          </Button>
+          <Button onClick={() => setShowRegister(true)} className="flex-1 sm:flex-none">
+            <Plus className="mr-2 h-4 w-4" />Register Customer
+          </Button>
+        </div>
       </div>
 
       <div className="filter-bar">
@@ -284,6 +304,7 @@ export default function LoyaltyCustomers() {
       <Dialog open={showRegister} onOpenChange={setShowRegister}>
         <DialogContent>
           <DialogHeader><DialogTitle>Register Customer</DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground -mt-1">Name + phone only — new members automatically get the member discount at checkout.</p>
           <div className="space-y-3">
             <Input placeholder="Full name *" value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
             <Input placeholder="Phone number *" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
@@ -292,15 +313,54 @@ export default function LoyaltyCustomers() {
               <label className="text-sm text-muted-foreground">Birthday (optional)</label>
               <Input type="date" value={form.birthday} onChange={(e) => setForm({ ...form, birthday: e.target.value })} />
             </div>
-            <div>
-              <label className="text-sm text-muted-foreground">Registered at branch</label>
-              <Select value={form.branch_created_id} onValueChange={(v) => setForm({ ...form, branch_created_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
-                <SelectContent>
-                  {(branches || []).map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm text-muted-foreground">Area / location (optional)</label>
+                <Input placeholder="e.g. Bodija, Dugbe..." value={form.area} onChange={(e) => setForm({ ...form, area: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-sm text-muted-foreground">Age range (optional)</label>
+                <Select value={form.age_range || "__none"} onValueChange={(v) => setForm({ ...form, age_range: v === "__none" ? "" : v })}>
+                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">Prefer not to say</SelectItem>
+                    <SelectItem value="Under 18">Under 18</SelectItem>
+                    <SelectItem value="18-24">18–24</SelectItem>
+                    <SelectItem value="25-34">25–34</SelectItem>
+                    <SelectItem value="35-44">35–44</SelectItem>
+                    <SelectItem value="45-54">45–54</SelectItem>
+                    <SelectItem value="55+">55+</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm text-muted-foreground">Gender (optional)</label>
+                <Select value={form.gender || "__none"} onValueChange={(v) => setForm({ ...form, gender: v === "__none" ? "" : v })}>
+                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">Prefer not to say</SelectItem>
+                    <SelectItem value="Female">Female</SelectItem>
+                    <SelectItem value="Male">Male</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm text-muted-foreground">Registered at branch</label>
+                <Select value={form.branch_created_id} onValueChange={(v) => setForm({ ...form, branch_created_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
+                  <SelectContent>
+                    {(branches || []).map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
+              <input type="checkbox" className="mt-0.5" checked={form.marketing_consent} onChange={(e) => setForm({ ...form, marketing_consent: e.target.checked })} />
+              <span>Customer consents to marketing messages and to using area/age for purchase insights.</span>
+            </label>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowRegister(false)}>Cancel</Button>
@@ -334,6 +394,7 @@ export default function LoyaltyCustomers() {
                 </div>
                 <p className="text-sm text-muted-foreground">
                   {detail.phone} {detail.email ? `· ${detail.email}` : ""} {detail.birthday ? `· 🎂 ${detail.birthday}` : ""}
+                  {detail.area ? ` · 📍 ${detail.area}` : ""}{detail.age_range ? ` · ${detail.age_range}` : ""}{detail.gender ? ` · ${detail.gender}` : ""}
                   {" · "}Earned {earned} · Redeemed {redeemed}
                   {completedSales.length ? ` · Last purchase ${completedSales[0].sale_date}` : " · No purchases yet"}
                 </p>

@@ -57,6 +57,7 @@ const sections: Section[] = [
       { title: "Loyalty Dashboard", url: "/loyalty", icon: Star },
       { title: "Customers", url: "/loyalty/customers", icon: Users },
       { title: "Rewards & Rules", url: "/loyalty/rewards", icon: Gift },
+      { title: "Spin & Win", url: "/loyalty/spin", icon: Sparkles },
     ],
   },
   {

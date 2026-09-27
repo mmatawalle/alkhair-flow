@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/AppLayout";
 import Login from "./pages/Login";
+import Join from "./pages/Join";
 import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import RawMaterials from "./pages/RawMaterials";
@@ -27,6 +28,8 @@ import AIDrafts from "./pages/AIDrafts";
 import LoyaltyDashboard from "./pages/loyalty/Dashboard";
 import LoyaltyCustomers from "./pages/loyalty/Customers";
 import LoyaltyRewards from "./pages/loyalty/Rewards";
+import SpinAdmin from "./pages/loyalty/SpinAdmin";
+import Spin from "./pages/Spin";
 import PaymentChannels from "./pages/PaymentChannels";
 import NotFound from "./pages/NotFound";
 
@@ -74,6 +77,7 @@ function ProtectedRoutes() {
         <Route path="/loyalty" element={<LoyaltyDashboard />} />
         <Route path="/loyalty/customers" element={<LoyaltyCustomers />} />
         <Route path="/loyalty/rewards" element={<LoyaltyRewards />} />
+        <Route path="/loyalty/spin" element={<RequireAdmin><SpinAdmin /></RequireAdmin>} />
         <Route path="/audit-log" element={<RequireAdmin><AuditLog /></RequireAdmin>} />
         {isSuperAdmin && <Route path="/users" element={<UserManagement />} />}
         <Route path="*" element={<NotFound />} />
@@ -106,6 +110,8 @@ const App = () => (
         <BrowserRouter basename={import.meta.env.BASE_URL}>
           <Routes>
             <Route path="/login" element={<AuthGate />} />
+            <Route path="/join" element={<Join />} />
+            <Route path="/spin" element={<Spin />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/*" element={<ProtectedRoutes />} />
           </Routes>

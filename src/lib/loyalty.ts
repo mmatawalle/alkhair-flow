@@ -13,6 +13,7 @@ export interface LoyaltyRule {
   min_spend: number;
   point_expiry_days: number;
   redemption_value_per_point: number;
+  member_discount_percent: number;
 }
 
 export interface EarnLine {
@@ -54,16 +55,30 @@ export function sumLedgerBalance(entries: { points: number | string }[]): number
   return entries.reduce((s, e) => s + Number(e.points || 0), 0);
 }
 
+/** Normalize a phone number for matching: strip spaces, dashes, brackets. */
+export function normalizePhone(phone: string): string {
+  return phone.trim().replace(/[\s\-()]/g, "");
+}
+
+/** Pure member-discount math: percent off subtotal, rounded to whole Naira, never negative. */
+export function calculateMemberDiscount(subtotal: number, percent: number | null | undefined): number {
+  const pct = Number(percent || 0);
+  const sub = Number(subtotal || 0);
+  if (!pct || pct <= 0 || !sub || sub <= 0) return 0;
+  const capped = Math.min(pct, 100);
+  return Math.min(Math.round((sub * capped) / 100), Math.round(sub));
+}
+
 export async function fetchActiveRule(): Promise<LoyaltyRule | null> {
   const { data, error } = await supabase
     .from("loyalty_rules")
-    .select("id, amount_per_point, min_spend, point_expiry_days, redemption_value_per_point")
+    .select("id, amount_per_point, min_spend, point_expiry_days, redemption_value_per_point, member_discount_percent")
     .eq("scope", "global")
     .eq("is_active", true)
     .limit(1)
     .maybeSingle();
   if (error) throw error;
-  return data;
+  return data as LoyaltyRule | null;
 }
 
 export async function fetchExclusions(): Promise<{ products: Set<string>; categories: Set<string> }> {
@@ -87,6 +102,10 @@ export interface LoyaltyCustomer {
   birthday: string | null;
   status: string;
   tier: string;
+  area?: string | null;
+  age_range?: string | null;
+  gender?: string | null;
+  marketing_consent?: boolean | null;
 }
 
 /** Resolve by QR token (active identifiers only) or exact phone number. */
@@ -102,10 +121,11 @@ export async function resolveCustomer(input: { token?: string; phone?: string })
     return (data?.loyalty_customers as unknown as LoyaltyCustomer) || null;
   }
   if (input.phone) {
+    const phone = normalizePhone(input.phone);
     const { data, error } = await supabase
       .from("loyalty_customers")
       .select("*")
-      .eq("phone", input.phone.trim())
+      .eq("phone", phone)
       .eq("status", "active")
       .maybeSingle();
     if (error) throw error;
@@ -159,16 +179,29 @@ export async function registerCustomer(input: {
   email?: string | null;
   birthday?: string | null;
   branch_created_id?: string | null;
+  area?: string | null;
+  age_range?: string | null;
+  gender?: string | null;
+  marketing_consent?: boolean | null;
 }): Promise<{ customer: LoyaltyCustomer; token: string }> {
+  const name = input.full_name.trim();
+  const phone = normalizePhone(input.phone);
+  if (!name) throw new Error("Full name is required");
+  if (!phone) throw new Error("Phone number is required");
   const { data: { user } } = await supabase.auth.getUser();
   const { data: customer, error: cErr } = await supabase
     .from("loyalty_customers")
     .insert({
-      full_name: input.full_name.trim(),
-      phone: input.phone.trim(),
+      full_name: name,
+      phone,
       email: input.email?.trim() || null,
       birthday: input.birthday || null,
       branch_created_id: input.branch_created_id || null,
+      area: input.area?.trim() || null,
+      age_range: input.age_range || null,
+      gender: input.gender || null,
+      marketing_consent: !!input.marketing_consent,
+      consent_at: input.marketing_consent ? new Date().toISOString() : null,
       created_by: user?.id || null,
     })
     .select("*")

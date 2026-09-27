@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -103,6 +104,9 @@ export default function Login() {
           <Button variant="link" className="mt-4 w-full text-muted-foreground text-sm" onClick={() => setShowForgot(true)}>
             Forgot password?
           </Button>
+          <p className="mt-1 text-center text-sm text-muted-foreground">
+            New customer? <Link to="/join" className="font-medium text-primary underline">Join Al-Khair Loyalty — save 5%</Link>
+          </p>
         </CardContent>
       </Card>
     </div>

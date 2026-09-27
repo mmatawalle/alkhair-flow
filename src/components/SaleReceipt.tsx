@@ -13,6 +13,7 @@ export interface ReceiptData {
     total: number;
     subtotal: number;
     discount: number;
+    member_discount?: number | null;
     status: string;
     note?: string | null;
     branches?: { name: string } | null;
@@ -100,7 +101,12 @@ export function SaleReceipt({ open, onOpenChange, data }: SaleReceiptProps) {
           {sale.discount > 0 && (
             <>
               <div className="row"><span>Subtotal:</span><span>{fmt(sale.subtotal)}</span></div>
-              <div className="row"><span>Discount (redeemed):</span><span>-{fmt(sale.discount)}</span></div>
+              {Number(sale.member_discount || 0) > 0 && (
+                <div className="row"><span>Member discount:</span><span>-{fmt(Number(sale.member_discount))}</span></div>
+              )}
+              {sale.discount - Number(sale.member_discount || 0) > 0 && (
+                <div className="row"><span>Discount (redeemed):</span><span>-{fmt(sale.discount - Number(sale.member_discount || 0))}</span></div>
+              )}
             </>
           )}
           <div className="row total"><span>PAYABLE</span><span>{fmt(sale.total)}</span></div>

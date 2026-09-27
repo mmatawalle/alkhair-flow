@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calculateEarnPoints, generateLoyaltyToken, sumLedgerBalance } from "@/lib/loyalty";
+import { calculateEarnPoints, calculateMemberDiscount, generateLoyaltyToken, normalizePhone, sumLedgerBalance } from "@/lib/loyalty";
 
 describe("calculateEarnPoints", () => {
   const rule = { amount_per_point: 100, min_spend: 0 };
@@ -82,5 +82,30 @@ describe("generateLoyaltyToken", () => {
   it("produces unique tokens", () => {
     const set = new Set(Array.from({ length: 1000 }, () => generateLoyaltyToken()));
     expect(set.size).toBe(1000);
+  });
+});
+
+describe("calculateMemberDiscount", () => {
+  it("applies 5% rounded to whole Naira", () => {
+    expect(calculateMemberDiscount(10000, 5)).toBe(500);
+    expect(calculateMemberDiscount(1001, 5)).toBe(50);
+    expect(calculateMemberDiscount(1010, 5)).toBe(51);
+  });
+
+  it("returns zero for missing/zero inputs", () => {
+    expect(calculateMemberDiscount(10000, 0)).toBe(0);
+    expect(calculateMemberDiscount(10000, null)).toBe(0);
+    expect(calculateMemberDiscount(0, 5)).toBe(0);
+  });
+
+  it("caps at 100% of subtotal", () => {
+    expect(calculateMemberDiscount(2000, 150)).toBe(2000);
+  });
+});
+
+describe("normalizePhone", () => {
+  it("strips spaces, dashes and brackets", () => {
+    expect(normalizePhone("0803 123-4567")).toBe("08031234567");
+    expect(normalizePhone("  (0803) 123 4567 ")).toBe("08031234567");
   });
 });

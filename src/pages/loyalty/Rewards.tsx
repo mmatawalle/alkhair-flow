@@ -40,7 +40,6 @@ export default function LoyaltyRewards() {
     },
   });
   const activeRule = ruleForm || rule;
-
   const { data: rewards } = useQuery({
     queryKey: ["loyalty_rewards"],
     queryFn: async () => {
@@ -107,8 +106,10 @@ export default function LoyaltyRewards() {
         min_spend: Number(activeRule.min_spend),
         point_expiry_days: Number(activeRule.point_expiry_days),
         redemption_value_per_point: Number(activeRule.redemption_value_per_point),
+        member_discount_percent: Number(activeRule.member_discount_percent ?? 5),
       };
       if (payload.amount_per_point <= 0) throw new Error("Amount per point must be > 0");
+      if (payload.member_discount_percent < 0 || payload.member_discount_percent > 50) throw new Error("Member discount must be 0–50%");
       const { error } = await supabase.from("loyalty_rules").update(payload).eq("id", rule.id);
       if (error) throw error;
       await logAudit({ action_type: "update", module: "loyalty_rules", record_id: rule.id, new_values: payload });
@@ -239,10 +240,17 @@ export default function LoyaltyRewards() {
 
       {/* Points rules */}
       <Card>
-        <CardHeader><CardTitle className="text-base">Points Rules (global)</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-base">Points Rules (global)</CardTitle>
+          <p className="text-xs text-muted-foreground">Member discount applies automatically to every sale with a loyalty customer attached (registration incentive).</p>
+        </CardHeader>
         <CardContent>
           {activeRule ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <div>
+                <label className="text-xs text-muted-foreground">Member discount (%)</label>
+                <Input type="number" min={0} max={50} step="any" value={activeRule.member_discount_percent ?? 5} onChange={(e) => setRuleForm({ ...activeRule, member_discount_percent: Number(e.target.value) })} />
+              </div>
               <div>
                 <label className="text-xs text-muted-foreground">₦ per 1 point</label>
                 <Input type="number" min={1} value={activeRule.amount_per_point} onChange={(e) => setRuleForm({ ...activeRule, amount_per_point: Number(e.target.value) })} />
@@ -259,7 +267,7 @@ export default function LoyaltyRewards() {
                 <label className="text-xs text-muted-foreground">₦ value per point</label>
                 <Input type="number" min={0} step="any" value={activeRule.redemption_value_per_point} onChange={(e) => setRuleForm({ ...activeRule, redemption_value_per_point: Number(e.target.value) })} />
               </div>
-              <div className="sm:col-span-2 lg:col-span-4">
+              <div className="sm:col-span-2 lg:col-span-5">
                 <Button size="sm" onClick={() => saveRuleMutation.mutate()} disabled={saveRuleMutation.isPending || !ruleForm}>
                   {saveRuleMutation.isPending ? "Saving..." : "Save Rules"}
                 </Button>

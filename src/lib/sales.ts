@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { logAudit } from "@/lib/audit";
-import { calculateEarnPoints, fetchActiveRule, fetchExclusions, fetchBalance, getActiveCampaignMultiplier, postLedgerEntry } from "@/lib/loyalty";
+import { calculateEarnPoints, calculateMemberDiscount, fetchActiveRule, fetchExclusions, fetchBalance, getActiveCampaignMultiplier, postLedgerEntry } from "@/lib/loyalty";
 import { adjustBranchQty, fetchStockMap } from "@/lib/inventory";
 import { sendLoyaltyEarnedEmail, sendLoyaltyRedeemedEmail } from "@/lib/email";
 
@@ -21,6 +21,7 @@ export interface CreateSaleInput {
   note?: string | null;
   items: SaleLineInput[];
   redeem_reward_id?: string | null;
+  apply_member_discount?: boolean | null;
   pos_terminal_id?: string | null;
   bank_account_id?: string | null;
 }
@@ -33,7 +34,7 @@ function saleNumber(): string {
 }
 
 /** Normalized sale: sales header + sale_items + branch stock + loyalty earn/redeem + audit. */
-export async function createSale(input: CreateSaleInput): Promise<{ saleId: string; pointsEarned: number; discount: number }> {
+export async function createSale(input: CreateSaleInput): Promise<{ saleId: string; pointsEarned: number; discount: number; memberDiscount: number }> {
   const valid = input.items.filter((i) => i.product_id && Number(i.quantity) > 0 && Number(i.unit_price) >= 0);
   if (!valid.length) throw new Error("Add at least one sale item");
   if (!input.branch_id) throw new Error("Select a branch");
@@ -61,6 +62,18 @@ export async function createSale(input: CreateSaleInput): Promise<{ saleId: stri
     return { ...i, line_total: total, line_cogs: cogs, line_profit: total - cogs };
   });
   const subtotal = lines.reduce((s, l) => s + l.line_total, 0);
+  // Member benefit: automatic % off for attached loyalty customers (default 5%).
+  let memberDiscount = 0;
+  let memberPct = 0;
+  if (input.customer_id && input.apply_member_discount !== false) {
+    try {
+      const rule = await fetchActiveRule();
+      memberPct = Number((rule as any)?.member_discount_percent || 0);
+      memberDiscount = calculateMemberDiscount(subtotal, memberPct);
+    } catch {
+      memberDiscount = 0;
+    }
+  }
   // Pre-validate redeem (balance + reward active) and compute discount before sale insert
   let discount = 0;
   let redeemReward: any = null;
@@ -78,8 +91,10 @@ export async function createSale(input: CreateSaleInput): Promise<{ saleId: stri
       const { data: p } = await supabase.from("products").select("selling_price").eq("id", (rw as any).product_id).single();
       discount = Number((rw as any).value_amount || (p as any)?.selling_price || 0);
     } else discount = Number((rw as any).value_amount || 0);
-    if (discount > subtotal) discount = subtotal;
+    const remainder = Math.max(0, subtotal - memberDiscount);
+    if (discount > remainder) discount = remainder;
   }
+  const totalDiscount = memberDiscount + discount;
   const { data: { user } } = await supabase.auth.getUser();
 
   const { data: sale, error: saleErr } = await supabase
@@ -94,8 +109,9 @@ export async function createSale(input: CreateSaleInput): Promise<{ saleId: stri
       pos_terminal_id: input.pos_terminal_id || null,
       bank_account_id: input.bank_account_id || null,
       subtotal,
-      discount,
-      total: subtotal - discount,
+      discount: totalDiscount,
+      member_discount: memberDiscount,
+      total: subtotal - totalDiscount,
       status: "completed",
       note: input.note || null,
     })
@@ -142,7 +158,7 @@ export async function createSale(input: CreateSaleInput): Promise<{ saleId: stri
       customer_id: input.customer_id,
       points: -Number(redeemReward.points_cost),
       entry_type: "redeem",
-      reason: `Redeemed at POS: ${redeemReward.name} on ${saleNumber()} (-${discount > 0 ? `₦${discount}` : ""})`,
+      reason: `Redeemed at POS: ${redeemReward.name} (${(sale as any).id.slice(0, 8)}${memberDiscount > 0 ? `, member -₦${memberDiscount}` : ""}${discount > 0 ? `, reward -₦${discount}` : ""})`,
       sale_id: (sale as any).id,
       branch_id: input.branch_id,
     });
@@ -183,7 +199,7 @@ export async function createSale(input: CreateSaleInput): Promise<{ saleId: stri
     }
   }
 
-  // Loyalty earn (with campaign multiplier)
+  // Loyalty earn (with campaign multiplier), on net payable after member + redeem discounts
   let pointsEarned = 0;
   if (input.customer_id) {
     try {
@@ -191,8 +207,17 @@ export async function createSale(input: CreateSaleInput): Promise<{ saleId: stri
       if (rule) {
         const earnLines = lines.map((l) => ({ product_id: l.product_id, category: l.category, line_total: l.line_total }));
         const multiplier = await getActiveCampaignMultiplier(input.sale_date, earnLines);
-        const { points } = calculateEarnPoints(earnLines, rule, excl.products, excl.categories, multiplier);
-        if (points > 0) {
+        const { eligibleTotal, points: grossPoints } = calculateEarnPoints(earnLines, rule, excl.products, excl.categories, 1);
+        if (grossPoints > 0) {
+          // Scale eligible spend down pro-rata for discounts, then apply multiplier.
+          const ratio = subtotal > 0 ? Math.max(0, (subtotal - totalDiscount) / subtotal) : 0;
+          const netEligible = eligibleTotal * ratio;
+          const perPoint = Number((rule as any).amount_per_point || 0);
+          const netPoints = perPoint > 0 && netEligible >= Number((rule as any).min_spend || 0)
+            ? Math.floor(netEligible / perPoint) * multiplier
+            : 0;
+          const points = netPoints;
+          if (points > 0) {
           await postLedgerEntry({
             customer_id: input.customer_id,
             points,
@@ -220,6 +245,7 @@ export async function createSale(input: CreateSaleInput): Promise<{ saleId: stri
               });
             }
           })();
+          }
         }
       }
     } catch (e) {
@@ -231,10 +257,10 @@ export async function createSale(input: CreateSaleInput): Promise<{ saleId: stri
     action_type: "create",
     module: "sales",
     record_id: (sale as any).id,
-    new_values: { branch_id: input.branch_id, customer_id: input.customer_id, total: subtotal - discount, discount, lines: lines.length, redeemed: redeemReward?.name || null, sale_type: input.sale_type, pos_terminal_id: input.pos_terminal_id || null, bank_account_id: input.bank_account_id || null },
+    new_values: { branch_id: input.branch_id, customer_id: input.customer_id, total: subtotal - totalDiscount, discount: totalDiscount, member_discount: memberDiscount, redeem_discount: discount, lines: lines.length, redeemed: redeemReward?.name || null, sale_type: input.sale_type, pos_terminal_id: input.pos_terminal_id || null, bank_account_id: input.bank_account_id || null },
   });
 
-  return { saleId: (sale as any).id, pointsEarned, discount };
+  return { saleId: (sale as any).id, pointsEarned, discount: totalDiscount, memberDiscount };
 }
 
 /** Void a normalized sale: restore stock, reverse loyalty earn, audit. */

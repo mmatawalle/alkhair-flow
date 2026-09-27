@@ -23,7 +23,7 @@ import {
 import { SaleReceipt } from "@/components/SaleReceipt";
 import { downloadCSV } from "@/lib/csv-export";
 import { fetchBranches, fetchStockMap, getBranchQty, type Branch } from "@/lib/inventory";
-import { fetchAffordableRewards, fetchBalance, resolveCustomer, searchCustomers, type LoyaltyCustomer } from "@/lib/loyalty";
+import { fetchAffordableRewards, fetchBalance, fetchActiveRule, resolveCustomer, searchCustomers, calculateMemberDiscount, type LoyaltyCustomer } from "@/lib/loyalty";
 import { createSale, voidSale } from "@/lib/sales";
 import { QrScanner } from "@/components/QrScanner";
 
@@ -68,6 +68,7 @@ export default function Sales() {
   const [affordable, setAffordable] = useState<any[]>([]);
   const [redeemId, setRedeemId] = useState("");
   const [qrOpen, setQrOpen] = useState(false);
+  const [applyMemberDiscount, setApplyMemberDiscount] = useState(true);
   const [customerSearchResults, setCustomerSearchResults] = useState<LoyaltyCustomer[]>([]);
   const [searchingCustomers, setSearchingCustomers] = useState(false);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
@@ -141,6 +142,12 @@ export default function Sales() {
     enabled: productIds.length > 0,
   });
 
+  const { data: loyaltyRule } = useQuery({
+    queryKey: ["loyalty_rule_active"],
+    queryFn: () => fetchActiveRule(),
+  });
+  const memberPct = Number((loyaltyRule as any)?.member_discount_percent ?? 5);
+
   const { data: posTerminals } = useQuery({
     queryKey: ["pos_terminals_active"],
     queryFn: async () => {
@@ -213,6 +220,7 @@ export default function Sales() {
     setCustomerBalance(0);
     setAffordable([]);
     setRedeemId("");
+    setApplyMemberDiscount(true);
     setCustomerSearchResults([]);
     setShowCustomerDropdown(false);
   };
@@ -361,8 +369,10 @@ export default function Sales() {
   const validSaleItems = saleItems.filter((item) => item.product_id && item.quantity_sold > 0 && item.selling_price_per_unit >= 0);
   const batchTotal = validSaleItems.reduce((sum, item) => sum + item.quantity_sold * item.selling_price_per_unit, 0);
   const selectedReward = affordable.find((r) => r.id === redeemId);
-  const rewardDiscount = selectedReward ? Number(selectedReward.value_amount || 0) || (selectedReward.product_id ? Number((products || []).find((p: any) => p.id === selectedReward.product_id)?.selling_price || 0) : 0) : 0;
-  const payableTotal = Math.max(0, batchTotal - (customer && redeemId ? rewardDiscount : 0));
+  const memberDiscount = customer && applyMemberDiscount ? calculateMemberDiscount(batchTotal, memberPct) : 0;
+  const rewardDiscountRaw = selectedReward ? Number(selectedReward.value_amount || 0) || (selectedReward.product_id ? Number((products || []).find((p: any) => p.id === selectedReward.product_id)?.selling_price || 0) : 0) : 0;
+  const rewardDiscount = Math.min(rewardDiscountRaw, Math.max(0, batchTotal - memberDiscount));
+  const payableTotal = Math.max(0, batchTotal - memberDiscount - (customer && redeemId ? rewardDiscount : 0));
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -386,6 +396,7 @@ export default function Sales() {
           };
         }),
         redeem_reward_id: customer && redeemId ? redeemId : null,
+        apply_member_discount: customer ? applyMemberDiscount : false,
       }),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ["sales"] });
@@ -396,7 +407,7 @@ export default function Sales() {
       resetForm();
       toast({
         title: `${validSaleItems.length} item(s) sold ✓`,
-        description: `${res.discount > 0 ? `-${fmt(res.discount)} redeemed · ` : ""}${res.pointsEarned > 0 ? `+${res.pointsEarned} pts earned` : ""}` || undefined,
+        description: `${res.memberDiscount > 0 ? `-${fmt(res.memberDiscount)} member · ` : ""}${res.discount - res.memberDiscount > 0 ? `-${fmt(res.discount - res.memberDiscount)} redeemed · ` : ""}${res.pointsEarned > 0 ? `+${res.pointsEarned} pts earned` : ""}` || undefined,
       });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -724,7 +735,16 @@ export default function Sales() {
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
-                    <div className="rounded border bg-muted/30 p-2">
+                    <div className="rounded border bg-muted/30 p-2 space-y-2">
+                      <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={applyMemberDiscount}
+                          onChange={(e) => setApplyMemberDiscount(e.target.checked)}
+                        />
+                        Apply {memberPct}% member discount {memberDiscount > 0 && <span className="text-emerald-600">(-{fmt(memberDiscount)})</span>}
+                      </label>
+                      <div>
                       <label className="text-xs text-muted-foreground">Redeem reward at checkout (customer approval required)</label>
                       <div className="mt-1 flex gap-2">
                         <Select value={redeemId || "__none"} onValueChange={(v) => setRedeemId(v === "__none" ? "" : v)}>
@@ -739,6 +759,7 @@ export default function Sales() {
                         {redeemId && <Badge variant="secondary" className="shrink-0">-{fmt(rewardDiscount)}</Badge>}
                       </div>
                       {redeemId && <p className="text-xs text-muted-foreground mt-1">Deduct {selectedReward?.points_cost} pts, apply {fmt(rewardDiscount)} discount. Ledger + redemption will be created with this sale.</p>}
+                      </div>
                     </div>
                   </>
                 ) : (
@@ -885,6 +906,7 @@ export default function Sales() {
               </Button>
               <div className="rounded-lg bg-muted/60 px-3 py-2 text-sm space-y-1">
                 <div><span className="text-muted-foreground">Subtotal: </span><strong>{fmt(batchTotal)}</strong></div>
+                {memberDiscount > 0 && <div className="text-xs"><span className="text-muted-foreground">Member {memberPct}%: </span><span className="text-emerald-600 font-medium">-{fmt(memberDiscount)}</span></div>}
                 {redeemId && <div className="text-xs"><span className="text-muted-foreground">Redeem {selectedReward?.name}: </span><span className="text-destructive font-medium">-{fmt(rewardDiscount)}</span><span className="text-muted-foreground"> ({selectedReward?.points_cost} pts)</span></div>}
                 <div><span className="text-muted-foreground">Payable: </span><strong>{fmt(payableTotal)}</strong>{customer && <span className="text-muted-foreground text-xs"> · +pts earned on save{redeemId ? " (after redeem)" : ""}</span>}</div>
               </div>

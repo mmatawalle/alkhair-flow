@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { AlertTriangle, ArrowRightLeft, DollarSign, Gift, Plus, Receipt, Repeat, TrendingUp, Truck } from "lucide-react";
 import { StockBadge, getProductStockLevel, getStockLevel, fmt } from "@/lib/stock-helpers";
 import { fetchBranches, fetchStockMap } from "@/lib/inventory";
+import { SpinPromoCard, LoyaltyJoinCard } from "@/components/HomePromos";
 import type { Database } from "@/integrations/supabase/types";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
@@ -289,6 +290,11 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       )}
+
+      <section className="grid gap-3 md:gap-5 lg:grid-cols-2" aria-label="Spin and win and loyalty signup">
+        <SpinPromoCard />
+        <LoyaltyJoinCard />
+      </section>
 
       <section className="grid grid-cols-2 gap-2 md:gap-3 lg:grid-cols-4">
         <MetricCard
