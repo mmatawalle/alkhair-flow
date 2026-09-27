@@ -37,7 +37,7 @@ export default function Join() {
     marketing_consent: false,
   });
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<{ name: string; token: string } | null>(null);
+  const [done, setDone] = useState<{ name: string; token: string; handle: string | null } | null>(null);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,9 +58,9 @@ export default function Join() {
         p_marketing_consent: form.marketing_consent,
       });
       if (error) throw error;
-      const row = (data as unknown as { customer_id: string; token: string }[] | null)?.[0];
+      const row = (data as unknown as { customer_id: string; token: string; handle: string | null }[] | null)?.[0];
       if (!row?.token) throw new Error("Registration failed");
-      setDone({ name: form.full_name.trim(), token: row.token });
+      setDone({ name: form.full_name.trim(), token: row.token, handle: row.handle || null });
     } catch (err: unknown) {
       const raw = err instanceof Error ? err.message : getErrorMessage(err);
       // Supabase RPC errors come wrapped as { message, ... }; surface the DB message when present.
@@ -86,6 +86,12 @@ export default function Join() {
             <div className="flex justify-center">
               <LoyaltyQR token={done.token} customerName={done.name} size={180} />
             </div>
+            {done.handle && (
+              <p className="rounded-lg border border-primary/30 bg-primary/10 p-2.5 text-center text-sm">
+                Member ID: <span className="font-mono font-bold tracking-wide">{done.handle}</span>
+                <span className="block text-xs font-normal text-muted-foreground">Easy to remember — quote it at the till instead of your phone number.</span>
+              </p>
+            )}
             <p className="flex items-center justify-center gap-1.5 text-center text-sm text-muted-foreground">
               <BadgePercent className="h-4 w-4 text-emerald-600" />
               Members save 5% on every purchase.

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calculateEarnPoints, calculateMemberDiscount, generateLoyaltyToken, normalizePhone, sumLedgerBalance } from "@/lib/loyalty";
+import { calculateEarnPoints, calculateMemberDiscount, generateLoyaltyToken, normalizeHandle, normalizePhone, sumLedgerBalance } from "@/lib/loyalty";
 
 describe("calculateEarnPoints", () => {
   const rule = { amount_per_point: 100, min_spend: 0 };
@@ -107,5 +107,13 @@ describe("normalizePhone", () => {
   it("strips spaces, dashes and brackets", () => {
     expect(normalizePhone("0803 123-4567")).toBe("08031234567");
     expect(normalizePhone("  (0803) 123 4567 ")).toBe("08031234567");
+  });
+});
+
+describe("normalizeHandle", () => {
+  it("lowercases and hyphenates member IDs", () => {
+    expect(normalizeHandle("Wonderful Parrot")).toBe("wonderful-parrot");
+    expect(normalizeHandle("  AMAZING_tiger!! ")).toBe("amazing-tiger");
+    expect(normalizeHandle("brave-fox")).toBe("brave-fox");
   });
 });

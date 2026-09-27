@@ -1,16 +1,12 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { SpinWheel } from "@/components/SpinWheel";
-import { fetchActiveWheel } from "@/lib/spin";
-import { Play, Sparkles, UserPlus } from "lucide-react";
+import { UserPlus } from "lucide-react";
 
 const logoSrc = `${import.meta.env.BASE_URL}brand-logo.png`;
 
@@ -87,7 +83,7 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background p-4 py-8">
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center space-y-3 pb-2">
           <img
@@ -118,36 +114,6 @@ export default function Login() {
           </div>
         </CardContent>
       </Card>
-
-      <LandingSpinPromo />
     </div>
-  );
-}
-
-function LandingSpinPromo() {
-  const navigate = useNavigate();
-  const { data } = useQuery({
-    queryKey: ["spin_wheel_landing"],
-    queryFn: () => fetchActiveWheel(),
-    staleTime: 60_000,
-  });
-  const prizes = data?.prizes || [];
-
-  return (
-    <Card className="w-full max-w-sm border-primary/30 bg-card">
-      <CardContent className="flex items-center gap-4 p-4">
-        <div className="w-[120px] shrink-0">
-          {prizes.length > 0 && <SpinWheel prizes={prizes} targetPrizeId={null} spinning={false} onSettled={undefined} />}
-        </div>
-        <div className="min-w-0 flex-1">
-          <Badge variant="secondary"><Sparkles className="mr-1 h-3 w-3" />Spin & Win · free</Badge>
-          <p className="mt-1.5 text-sm font-bold leading-snug">Spin the wheel, win points & discounts</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">No signup needed to try — register only to keep your win.</p>
-          <Button size="sm" className="mt-2 w-full" onClick={() => navigate("/spin")}>
-            <Play className="mr-2 h-4 w-4" />Spin free now
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
   );
 }

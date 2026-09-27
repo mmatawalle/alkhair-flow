@@ -1,0 +1,31 @@
+# AL-KHAIR Flow — Apache/cPanel rules for the Vite SPA build.
+# This file lives in public/ so every `vite build` copies it to dist/ automatically.
+# Upload the CONTENTS of dist/ (including this file) to public_html (or the subdomain folder).
+
+# --- 1. SPA fallback: direct visits / reloads on /login, /spin, /join must serve index.html ---
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # If you deploy into a subfolder (e.g. public_html/app), change this to: RewriteBase /app/
+  RewriteBase /
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>
+
+# --- 2. Cache strategy: hashed assets cache forever, index.html never ---
+# Vite fingerprints built assets (index-AbC123.js), so a new deploy = new URLs = fresh code
+# on a NORMAL reload. Only index.html (which points to those URLs) must stay fresh.
+<IfModule mod_headers.c>
+  <FilesMatch "index\.html$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+  <FilesMatch "\.(js|css|woff2?|ttf|eot)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  # Images/fonts in public/ keep their filenames (no hash): cache briefly so a
+  # replaced logo/pic updates within a day. Rename the file if you need it instant.
+  <FilesMatch "\.(png|jpg|jpeg|gif|svg|ico|webp)$">
+    Header set Cache-Control "public, max-age=86400, must-revalidate"
+  </FilesMatch>
+</IfModule>

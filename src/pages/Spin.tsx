@@ -35,7 +35,7 @@ export default function Spin() {
   const [win, setWin] = useState<SpinResult | null>(() => loadPendingWin());
   const [revealed, setRevealed] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
-  const [claimed, setClaimed] = useState<{ token: string; name: string; voucher: string | null } | null>(null);
+  const [claimed, setClaimed] = useState<{ token: string; handle: string | null; name: string; voucher: string | null } | null>(null);
 
   useEffect(() => {
     fetchActiveWheel()
@@ -200,6 +200,11 @@ export default function Spin() {
               <div className="flex justify-center">
                 <LoyaltyQR token={claimed.token} customerName={claimed.name} size={150} showActions={false} />
               </div>
+              {claimed.handle && (
+                <p className="rounded-lg border border-primary/30 bg-primary/10 p-2 text-center text-sm">
+                  Member ID: <span className="font-mono font-bold tracking-wide">{claimed.handle}</span>
+                </p>
+              )}
               {claimed.voucher && (
                 <p className="rounded-lg border bg-card p-3 text-center text-sm">
                   <Ticket className="mr-1 inline h-4 w-4" /> Till voucher:{" "}
@@ -243,7 +248,7 @@ export default function Spin() {
         win={win}
         demo={isDemo}
         onClaimed={(info) => {
-          setClaimed({ token: info.customerToken, name: info.customerName, voucher: info.voucher_code });
+          setClaimed({ token: info.customerToken, handle: info.customerHandle, name: info.customerName, voucher: info.voucher_code });
           clearPendingWin();
         }}
       />

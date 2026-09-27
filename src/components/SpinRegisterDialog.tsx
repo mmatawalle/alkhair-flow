@@ -12,7 +12,7 @@ interface SpinRegisterDialogProps {
   onOpenChange: (open: boolean) => void;
   win: SpinResult | null;
   demo: boolean;
-  onClaimed: (info: { customerToken: string; customerName: string; voucher_code: string | null }) => void;
+  onClaimed: (info: { customerToken: string; customerHandle: string | null; customerName: string; voucher_code: string | null }) => void;
 }
 
 function friendlyError(message: string): string {
@@ -28,7 +28,7 @@ export function SpinRegisterDialog({ open, onOpenChange, win, demo, onClaimed }:
   const [form, setForm] = useState({ full_name: "", phone: "", email: "", marketing_consent: true });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<{ token: string; voucher: string | null } | null>(null);
+  const [done, setDone] = useState<{ token: string; handle: string | null; voucher: string | null } | null>(null);
 
   // Header MUST display the win so the user doesn't feel like losing the points.
   const header = win
@@ -53,8 +53,8 @@ export function SpinRegisterDialog({ open, onOpenChange, win, demo, onClaimed }:
         claim_token: win.claim_token,
         demo,
       });
-      setDone({ token: res.customerToken, voucher: res.voucher_code });
-      onClaimed({ customerToken: res.customerToken, customerName: form.full_name.trim(), voucher_code: res.voucher_code });
+      setDone({ token: res.customerToken, handle: res.customerHandle, voucher: res.voucher_code });
+      onClaimed({ customerToken: res.customerToken, customerHandle: res.customerHandle, customerName: form.full_name.trim(), voucher_code: res.voucher_code });
     } catch (err) {
       setError(friendlyError((err as { message?: string })?.message || ""));
     } finally {
@@ -87,6 +87,11 @@ export function SpinRegisterDialog({ open, onOpenChange, win, demo, onClaimed }:
             <div className="flex justify-center">
               <LoyaltyQR token={done.token} customerName={form.full_name.trim()} size={160} showActions={false} />
             </div>
+            {done.handle && (
+              <p className="rounded-lg border border-primary/30 bg-primary/10 p-2 text-center text-sm">
+                Member ID: <span className="font-mono font-bold tracking-wide">{done.handle}</span>
+              </p>
+            )}
             {done.voucher && (
               <p className="rounded-lg border bg-muted/50 p-3 text-center text-sm">
                 Till voucher: <span className="font-mono font-bold tracking-widest">{done.voucher}</span>

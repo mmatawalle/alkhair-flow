@@ -60,6 +60,15 @@ export function normalizePhone(phone: string): string {
   return phone.trim().replace(/[\s\-()]/g, "");
 }
 
+/** Normalize a member handle for matching: lowercase, hyphen-separated. */
+export function normalizeHandle(handle: string): string {
+  return handle
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 /** Pure member-discount math: percent off subtotal, rounded to whole Naira, never negative. */
 export function calculateMemberDiscount(subtotal: number, percent: number | null | undefined): number {
   const pct = Number(percent || 0);
@@ -102,14 +111,16 @@ export interface LoyaltyCustomer {
   birthday: string | null;
   status: string;
   tier: string;
+  /** Memorable unique member ID, e.g. "wonderful-parrot". */
+  handle?: string | null;
   area?: string | null;
   age_range?: string | null;
   gender?: string | null;
   marketing_consent?: boolean | null;
 }
 
-/** Resolve by QR token (active identifiers only) or exact phone number. */
-export async function resolveCustomer(input: { token?: string; phone?: string }): Promise<LoyaltyCustomer | null> {
+/** Resolve by QR token (active identifiers only), exact phone number, or member handle. */
+export async function resolveCustomer(input: { token?: string; phone?: string; handle?: string }): Promise<LoyaltyCustomer | null> {
   if (input.token) {
     const { data, error } = await supabase
       .from("loyalty_identifiers")
@@ -131,16 +142,28 @@ export async function resolveCustomer(input: { token?: string; phone?: string })
     if (error) throw error;
     return (data as LoyaltyCustomer) || null;
   }
+  if (input.handle) {
+    const handle = normalizeHandle(input.handle);
+    const { data, error } = await supabase
+      .from("loyalty_customers")
+      .select("*")
+      .eq("handle", handle)
+      .eq("status", "active")
+      .maybeSingle();
+    if (error) throw error;
+    return (data as LoyaltyCustomer) || null;
+  }
   return null;
 }
 
-/** Search customers by name, phone or email (autocomplete, active only). */
+/** Search customers by name, phone, email or memorable member ID (active only). */
 export async function searchCustomers(query: string, limit = 8): Promise<LoyaltyCustomer[]> {
   const q = query.trim();
   if (q.length < 2) return [];
   // Escape % and _ for ilike, then use or filter
   const esc = q.replace(/[%_\\]/g, (m) => `\\${m}`);
   const pattern = `%${esc}%`;
+  const handlePattern = `%${normalizeHandle(q)}%`;
   // Also try token match via identifiers — if query looks like token, include those customers
   const isTokenLike = /^[A-Z0-9]{6,}$/i.test(q);
   if (isTokenLike) {
@@ -157,7 +180,7 @@ export async function searchCustomers(query: string, limit = 8): Promise<Loyalty
     .from("loyalty_customers")
     .select("*")
     .eq("status", "active")
-    .or(`full_name.ilike.${pattern},phone.ilike.${pattern},email.ilike.${pattern}`)
+    .or(`full_name.ilike.${pattern},phone.ilike.${pattern},email.ilike.${pattern},handle.ilike.${handlePattern}`)
     .order("full_name")
     .limit(limit);
   if (error) throw error;

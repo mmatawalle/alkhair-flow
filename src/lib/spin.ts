@@ -262,7 +262,7 @@ export async function registerAndClaimWin(input: {
   marketing_consent?: boolean;
   claim_token: string;
   demo: boolean;
-}): Promise<{ customerToken: string; prize_label: string; prize_type: SpinPrizeType; points_credited: number; voucher_code: string | null }> {
+}): Promise<{ customerToken: string; customerHandle: string | null; prize_label: string; prize_type: SpinPrizeType; points_credited: number; voucher_code: string | null }> {
   const sb = supabase as any;
   const { data, error } = await sb.rpc("register_loyalty_member", {
     p_full_name: input.full_name.trim(),
@@ -275,7 +275,7 @@ export async function registerAndClaimWin(input: {
     p_marketing_consent: !!input.marketing_consent,
   });
   if (error) throw error;
-  const row = (data as unknown as { customer_id: string; token: string }[] | null)?.[0];
+  const row = (data as unknown as { customer_id: string; token: string; handle: string | null }[] | null)?.[0];
   if (!row?.token || !row?.customer_id) throw new Error("Registration failed");
   void guestKeyUnchanged;
 
@@ -284,6 +284,7 @@ export async function registerAndClaimWin(input: {
     const pending = loadPendingWin();
     return {
       customerToken: row.token,
+      customerHandle: row.handle || null,
       prize_label: pending?.prize_label || "win",
       prize_type: (pending?.prize_type as SpinPrizeType) || "points",
       points_credited: 0,
@@ -298,7 +299,7 @@ export async function registerAndClaimWin(input: {
   if (cErr) throw cErr;
   const c = (claimed as unknown as { prize_label: string; prize_type: SpinPrizeType; points_credited: number; voucher_code: string | null }[] | null)?.[0];
   if (!c) throw new Error("Claim failed — show your win at the till and staff will help.");
-  return { customerToken: row.token, ...c };
+  return { customerToken: row.token, customerHandle: row.handle || null, ...c };
 }
 
 const guestKeyUnchanged = true;

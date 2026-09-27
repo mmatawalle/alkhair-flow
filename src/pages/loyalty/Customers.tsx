@@ -184,7 +184,7 @@ export default function LoyaltyCustomers() {
   const filtered = (customers as any[] || []).filter((c) => {
     if (!search) return true;
     const s = search.toLowerCase();
-    return c.full_name?.toLowerCase().includes(s) || c.phone?.includes(s);
+    return c.full_name?.toLowerCase().includes(s) || c.phone?.includes(s) || c.handle?.toLowerCase().includes(s);
   });
 
   const copyToken = (token: string) => {
@@ -235,7 +235,7 @@ export default function LoyaltyCustomers() {
 
       <div className="filter-bar">
         <Input
-          placeholder="Search name or phone..."
+          placeholder="Search name, phone or member ID..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full sm:w-64"
@@ -254,7 +254,7 @@ export default function LoyaltyCustomers() {
               avatarFallback={c.full_name || c.phone}
               supportingIcon={<User className="h-3 w-3" />}
               heading={c.full_name}
-              caption={c.phone}
+              caption={c.handle ? `${c.phone} · ${c.handle}` : c.phone}
               meta={<span className="capitalize">{c.tier} · {c.status}</span>}
               trailing={<Badge variant="outline" className="text-xs shrink-0">{balances?.get(c.id) || 0} pts</Badge>}
               actions={[
@@ -273,6 +273,7 @@ export default function LoyaltyCustomers() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
+                    <TableHead>Member ID</TableHead>
                     <TableHead>Phone</TableHead>
                     <TableHead>Tier</TableHead>
                     <TableHead>Status</TableHead>
@@ -281,11 +282,12 @@ export default function LoyaltyCustomers() {
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
-                    <TableRow><TableCell colSpan={5} className="text-center">Loading...</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow>
                   ) : (
                     filtered.map((c: any) => (
                       <TableRow key={c.id} className="cursor-pointer" onClick={() => setDetailId(c.id)}>
                         <TableCell className="font-medium">{c.full_name}</TableCell>
+                        <TableCell className="font-mono text-xs">{c.handle || "—"}</TableCell>
                         <TableCell>{c.phone}</TableCell>
                         <TableCell className="capitalize">{c.tier}</TableCell>
                         <TableCell><Badge variant={c.status === "active" ? "default" : "secondary"}>{c.status}</Badge></TableCell>
@@ -393,6 +395,7 @@ export default function LoyaltyCustomers() {
                   <Stat label="Avg. ticket" value={fmt(completedSales.length ? lifetimeSpend / completedSales.length : 0)} />
                 </div>
                 <p className="text-sm text-muted-foreground">
+                  {detail.handle && <span className="font-mono font-semibold text-foreground">{detail.handle} · </span>}
                   {detail.phone} {detail.email ? `· ${detail.email}` : ""} {detail.birthday ? `· 🎂 ${detail.birthday}` : ""}
                   {detail.area ? ` · 📍 ${detail.area}` : ""}{detail.age_range ? ` · ${detail.age_range}` : ""}{detail.gender ? ` · ${detail.gender}` : ""}
                   {" · "}Earned {earned} · Redeemed {redeemed}
