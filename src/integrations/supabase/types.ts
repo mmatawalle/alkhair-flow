@@ -629,6 +629,7 @@ export type Database = {
           created_at: string
           current_stock: number
           id: string
+          image_url: string | null
           name: string
           purchase_unit: string
           reorder_level: number
@@ -640,6 +641,7 @@ export type Database = {
           created_at?: string
           current_stock?: number
           id?: string
+          image_url?: string | null
           name: string
           purchase_unit?: string
           reorder_level?: number
@@ -651,6 +653,7 @@ export type Database = {
           created_at?: string
           current_stock?: number
           id?: string
+          image_url?: string | null
           name?: string
           purchase_unit?: string
           reorder_level?: number

@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Ban, Receipt, Download, Trash2, X, UserPlus, QrCode, Search, Loader2, ShoppingBag } from "lucide-react";
+import { Plus, Minus, Ban, Receipt, Download, Trash2, X, UserPlus, QrCode, Search, Loader2, ShoppingBag, Banknote, Smartphone, CreditCard, Check, Sparkles } from "lucide-react";
 import { fmt } from "@/lib/stock-helpers";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { useSortableTable } from "@/hooks/use-sortable-table";
@@ -27,6 +27,7 @@ import { fetchBranches, fetchStockMap, getBranchQty, type Branch } from "@/lib/i
 import { fetchAffordableRewards, fetchBalance, fetchActiveRule, resolveCustomer, searchCustomers, calculateMemberDiscount, type LoyaltyCustomer } from "@/lib/loyalty";
 import { createSale, voidSale } from "@/lib/sales";
 import { QrScanner } from "@/components/QrScanner";
+import { getProductImage, DRINK_CATEGORIES, SNACK_CATEGORIES } from "@/lib/alkhair-menu";
 
 interface SaleItem {
   key: number;
@@ -73,6 +74,8 @@ export default function Sales() {
   const [customerSearchResults, setCustomerSearchResults] = useState<LoyaltyCustomer[]>([]);
   const [searchingCustomers, setSearchingCustomers] = useState(false);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [posCatFilter, setPosCatFilter] = useState("all");
+  const [posSearch, setPosSearch] = useState("");
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -224,6 +227,8 @@ export default function Sales() {
     setApplyMemberDiscount(true);
     setCustomerSearchResults([]);
     setShowCustomerDropdown(false);
+    setPosCatFilter("all");
+    setPosSearch("");
   };
 
   const attachCustomerRecord = async (found: LoyaltyCustomer) => {
@@ -361,6 +366,78 @@ export default function Sales() {
       }),
     );
   };
+
+  const POS_QUICK_TABS = [
+    { id: "all", label: "All Items", icon: "✨" },
+    { id: "drinks", label: "Drinks", icon: "🥤" },
+    { id: "snacks", label: "Snacks", icon: "🥧" },
+    { id: "Signature Milkshake Series", label: "Milkshakes", icon: "🍫" },
+    { id: "Milk Series", label: "Milk Series", icon: "🥛" },
+    { id: "Yoghurt Series", label: "Yoghurt", icon: "🥣" },
+    { id: "Fresh & Natural Series", label: "Fresh Juices", icon: "🍊" },
+    { id: "Native Series", label: "Native Drinks", icon: "🌺" },
+    { id: "Slush Series", label: "Slush", icon: "🍧" },
+    { id: "Classic Snacks", label: "Classic Snacks", icon: "🥐" },
+    { id: "Native Snacks", label: "Native Snacks", icon: "🥟" },
+    { id: "Ice Cream", label: "Ice Cream", icon: "🍦" },
+  ];
+
+  const handleProductTap = (product: any) => {
+    setSaleItems((prev) => {
+      const existingIndex = prev.findIndex((i) => i.product_id === product.id);
+      if (existingIndex !== -1) {
+        return prev.map((item, idx) =>
+          idx === existingIndex
+            ? { ...item, quantity_sold: Number(item.quantity_sold || 0) + 1 }
+            : item
+        );
+      }
+      if (prev.length === 1 && !prev[0].product_id) {
+        return [{
+          ...prev[0],
+          product_id: product.id,
+          quantity_sold: 1,
+          selling_price_per_unit: Number(product.selling_price || 0),
+        }];
+      }
+      return [
+        ...prev,
+        {
+          key: nextSaleKey,
+          product_id: product.id,
+          quantity_sold: 1,
+          selling_price_per_unit: Number(product.selling_price || 0),
+          note: "",
+        },
+      ];
+    });
+    setNextSaleKey((k) => k + 1);
+  };
+
+  const changeItemQty = (key: number, delta: number) => {
+    setSaleItems((prev) => {
+      const updated = prev.map((item) => {
+        if (item.key !== key) return item;
+        const nextQty = Number(item.quantity_sold || 0) + delta;
+        return { ...item, quantity_sold: Math.max(0, nextQty) };
+      });
+      const filtered = updated.filter((item) => item.quantity_sold > 0);
+      return filtered.length > 0 ? filtered : [emptySaleItem(1)];
+    });
+  };
+
+  const catalogProducts = (products || []).filter((p: any) => {
+    if (posSearch.trim()) {
+      const q = posSearch.toLowerCase();
+      const matchName = p.name?.toLowerCase().includes(q);
+      const matchCat = p.category?.toLowerCase().includes(q);
+      if (!matchName && !matchCat) return false;
+    }
+    if (posCatFilter === "all") return true;
+    if (posCatFilter === "drinks") return DRINK_CATEGORIES.includes(p.category);
+    if (posCatFilter === "snacks") return SNACK_CATEGORIES.includes(p.category);
+    return p.category === posCatFilter;
+  });
 
   const getRowProduct = (id: string) => (products || []).find((p: any) => p.id === id) as any;
   const rowQty = (productId: string) => {
@@ -637,21 +714,24 @@ export default function Sales() {
         open={open}
         onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}
       >
-        <DialogContent className="w-[96vw] max-w-[1120px] sm:max-w-[1120px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>New Sale</DialogTitle>
-          </DialogHeader>
-          <form
-            onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }}
-            className="space-y-4"
-          >
-            <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-3">
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div>
-                  <label className="text-xs text-muted-foreground">Branch</label>
+        <DialogContent className="w-[98vw] max-w-[1320px] max-h-[94vh] overflow-hidden flex flex-col p-3 sm:p-5">
+          <DialogHeader className="pb-2 border-b shrink-0">
+            <div className="flex flex-wrap items-center justify-between gap-3 pr-6">
+              <div>
+                <DialogTitle className="text-lg sm:text-xl font-bold flex items-center gap-2">
+                  <span>🥤</span>
+                  <span>Al-Khair POS Register</span>
+                </DialogTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Tap drinks or snacks to add · 1-touch payment · Real-time branch stock
+                </p>
+              </div>
+              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Branch:</label>
                   <Select value={branchId} onValueChange={setBranchId}>
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Select branch" />
+                    <SelectTrigger className="h-8 w-[130px] sm:w-[150px] text-xs">
+                      <SelectValue placeholder="Branch" />
                     </SelectTrigger>
                     <SelectContent>
                       {retailBranches.map((b) => (
@@ -662,266 +742,457 @@ export default function Sales() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">Payment type</label>
-                  <Select value={saleType} onValueChange={(v) => { setSaleType(v); setPosTerminalId(""); setBankAccountId(""); }}>
-                    <SelectTrigger className="h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cash">Cash</SelectItem>
-                      <SelectItem value="transfer">Bank Transfer</SelectItem>
-                      <SelectItem value="pos">POS</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">Sale date</label>
-                  <Input className="h-9" type="date" value={saleDate} onChange={(e) => setSaleDate(e.target.value)} />
+                <div className="flex items-center gap-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Date:</label>
+                  <Input className="h-8 w-[125px] text-xs" type="date" value={saleDate} onChange={(e) => setSaleDate(e.target.value)} />
                 </div>
               </div>
-              {saleType === "pos" && (
-                <div>
-                  <label className="text-xs text-muted-foreground">POS Terminal *</label>
-                  <Select value={posTerminalId} onValueChange={setPosTerminalId}>
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Select POS terminal" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(posTerminals || []).length === 0 && <div className="px-2 py-1.5 text-xs text-muted-foreground">No active terminals — add in POS & Banks</div>}
-                      {(posTerminals || []).map((t: any) => (
-                        <SelectItem key={t.id} value={t.id}>{t.label}{t.terminal_id ? ` — ${t.terminal_id}` : ""}{t.bank_name ? ` (${t.bank_name})` : ""}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {(posTerminals || []).length === 0 && <p className="text-[11px] text-amber-600 mt-1">No POS configured. Create one in POS & Banks → POS Terminals.</p>}
-                </div>
-              )}
-              {saleType === "transfer" && (
-                <div>
-                  <label className="text-xs text-muted-foreground">Bank Account *</label>
-                  <Select value={bankAccountId} onValueChange={setBankAccountId}>
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Select bank account" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(bankAccounts || []).length === 0 && <div className="px-2 py-1.5 text-xs text-muted-foreground">No active bank accounts — add in POS & Banks</div>}
-                      {(bankAccounts || []).map((b: any) => (
-                        <SelectItem key={b.id} value={b.id}>{b.bank_name} — {b.account_name} ({b.account_number})</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {(bankAccounts || []).length === 0 && <p className="text-[11px] text-amber-600 mt-1">No bank account configured. Create one in POS & Banks → Bank Accounts.</p>}
-                </div>
-              )}
+            </div>
+          </DialogHeader>
 
-              {/* Loyalty attach + POS redeem (customer approval) */}
-              <div className="rounded-lg border border-dashed border-border bg-card p-2.5 space-y-2">
-                {customer ? (
-                  <>
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {customer.full_name} <span className="text-muted-foreground font-normal">· {customer.phone}</span>{customer.email ? <span className="text-muted-foreground font-normal"> · {customer.email}</span> : null}
-                        </p>
-                        <p className="text-xs text-muted-foreground">{customerBalance} pts available · {customer.tier}</p>
-                      </div>
-                      <Button
+          {/* 2-Column Responsive Body */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 overflow-hidden pt-2 min-h-0">
+            {/* Left 7 Columns: Visual Product Catalog */}
+            <div className="lg:col-span-7 flex flex-col min-h-0 overflow-hidden pr-0 lg:pr-1">
+              {/* Search & Category Pills */}
+              <div className="space-y-2 mb-2 shrink-0">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Search drinks, snacks, milkshakes..."
+                    value={posSearch}
+                    onChange={(e) => setPosSearch(e.target.value)}
+                    className="pl-8 h-8 text-xs sm:text-sm"
+                  />
+                  {posSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setPosSearch("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Horizontal scroll category pills */}
+                <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+                  {POS_QUICK_TABS.map((tab) => {
+                    const active = posCatFilter === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
                         type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 shrink-0"
-                        onClick={() => { setCustomer(null); setCustomerBalance(0); setAffordable([]); setRedeemId(""); setLookup(""); setCustomerSearchResults([]); setShowCustomerDropdown(false); }}
+                        onClick={() => setPosCatFilter(tab.id)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1 shrink-0 ${
+                          active
+                            ? "bg-primary text-primary-foreground shadow-xs font-semibold"
+                            : "bg-muted/70 hover:bg-muted text-muted-foreground hover:text-foreground"
+                        }`}
                       >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <div className="rounded border bg-muted/30 p-2 space-y-2">
-                      <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={applyMemberDiscount}
-                          onChange={(e) => setApplyMemberDiscount(e.target.checked)}
-                        />
-                        Apply {memberPct}% member discount {memberDiscount > 0 && <span className="text-emerald-600">(-{fmt(memberDiscount)})</span>}
-                      </label>
-                      <div>
-                      <label className="text-xs text-muted-foreground">Redeem reward at checkout (customer approval required)</label>
-                      <div className="mt-1 flex gap-2">
-                        <Select value={redeemId || "__none"} onValueChange={(v) => setRedeemId(v === "__none" ? "" : v)}>
-                          <SelectTrigger className="h-8 flex-1"><SelectValue placeholder={affordable.length ? "No redeem" : "No affordable rewards"} /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none">No redeem</SelectItem>
-                            {affordable.map((r: any) => (
-                              <SelectItem key={r.id} value={r.id}>{r.name} — {r.points_cost} pts{Number(r.value_amount) ? ` (-${fmt(r.value_amount)})` : r.product_id ? " (free item)" : ""}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {redeemId && <Badge variant="secondary" className="shrink-0">-{fmt(rewardDiscount)}</Badge>}
-                      </div>
-                      {redeemId && <p className="text-xs text-muted-foreground mt-1">Deduct {selectedReward?.points_cost} pts, apply {fmt(rewardDiscount)} discount. Ledger + redemption will be created with this sale.</p>}
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="space-y-1.5">
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                        <Input
-                          className="h-9 pl-8 pr-8"
-                          placeholder="Search customer by name, phone or email…"
-                          value={lookup}
-                          onChange={(e) => setLookup(e.target.value)}
-                          onFocus={() => { if (customerSearchResults.length) setShowCustomerDropdown(true); }}
-                          onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 180)}
-                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); attachCustomer(); } if (e.key === "Escape") setShowCustomerDropdown(false); }}
-                        />
-                        <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                          {searchingCustomers && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-                          {!!lookup && !searchingCustomers && (
-                            <button
-                              type="button"
-                              aria-label="Clear"
-                              className="rounded p-0.5 hover:bg-muted"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => { setLookup(""); setCustomerSearchResults([]); setShowCustomerDropdown(false); }}
-                            >
-                              <X className="h-3.5 w-3.5 text-muted-foreground" />
-                            </button>
-                          )}
-                        </div>
-                        {showCustomerDropdown && customerSearchResults.length > 0 && (
-                          <div className="absolute left-0 right-0 z-50 mt-1 max-h-56 overflow-auto rounded-md border bg-popover shadow-lg">
-                            {customerSearchResults.map((c) => (
-                              <button
-                                key={c.id}
-                                type="button"
-                                className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left hover:bg-accent"
-                                onMouseDown={(e) => e.preventDefault()}
-                                onClick={() => attachCustomerRecord(c)}
-                              >
-                                <span className="text-sm font-medium leading-none">{c.full_name}</span>
-                                <span className="text-xs text-muted-foreground truncate w-full">
-                                  {c.phone}{c.email ? ` · ${c.email}` : ""} · {c.tier}
-                                </span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-9 w-9 shrink-0"
-                        title="Scan QR code"
-                        aria-label="Scan QR code"
-                        onClick={() => setQrOpen(true)}
-                      >
-                        <QrCode className="h-4 w-4" />
-                      </Button>
-                      <Button type="button" size="sm" className="h-9 shrink-0" disabled={lookupBusy || !lookup.trim()} onClick={attachCustomer}>
-                        <UserPlus className="mr-1 h-3.5 w-3.5" />
-                        {lookupBusy ? "..." : "Attach"}
-                      </Button>
-                    </div>
-                    <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                      <QrCode className="h-3 w-3" /> Tap QR to scan customer's loyalty code — it auto-attaches for the sale.
+                        <span>{tab.icon}</span>
+                        <span>{tab.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Product Cards Grid */}
+              <div className="flex-1 overflow-y-auto pr-1">
+                {catalogProducts.length === 0 ? (
+                  <div className="text-center py-10 border border-dashed rounded-xl bg-muted/20">
+                    <ShoppingBag className="h-9 w-9 text-muted-foreground/40 mx-auto mb-2" />
+                    <p className="text-xs sm:text-sm font-medium text-muted-foreground">No products match this filter</p>
+                    <p className="text-[11px] text-muted-foreground/80 mt-0.5">
+                      Check your search query or sync items from the Products page
                     </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                    {catalogProducts.map((p: any) => {
+                      const avail = rowQty(p.id);
+                      const inCartItem = saleItems.find((i) => i.product_id === p.id);
+                      const inCartQty = inCartItem?.quantity_sold || 0;
+                      const photo = getProductImage(p.name, p.image_url);
+
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => handleProductTap(p)}
+                          className={`group relative text-left rounded-xl border p-2 flex flex-col justify-between transition-all hover:shadow-md hover:border-primary/60 bg-card active:scale-[0.98] ${
+                            inCartQty > 0 ? "border-primary ring-2 ring-primary/20 bg-primary/5" : "border-border"
+                          }`}
+                        >
+                          {inCartQty > 0 && (
+                            <span className="absolute -top-1.5 -right-1.5 z-10 bg-primary text-primary-foreground text-[10px] font-bold h-5 min-w-5 px-1.5 rounded-full flex items-center justify-center shadow">
+                              +{inCartQty}
+                            </span>
+                          )}
+
+                          <div className="w-full aspect-[4/3] rounded-lg overflow-hidden bg-muted mb-2 relative">
+                            <img
+                              src={photo}
+                              alt={p.name}
+                              className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                              loading="lazy"
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = "none";
+                              }}
+                            />
+                            <span className="absolute bottom-1 left-1 text-[9px] font-medium bg-black/70 text-white backdrop-blur-xs px-1.5 py-0.5 rounded">
+                              {p.bottle_size || "Standard"}
+                            </span>
+                          </div>
+
+                          <div className="min-w-0 w-full space-y-1">
+                            <p className="text-xs font-semibold text-foreground line-clamp-1 group-hover:text-primary">
+                              {p.name}
+                            </p>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                                {fmt(p.selling_price || 0)}
+                              </span>
+                              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-medium ${
+                                avail > 0
+                                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                  : "bg-muted text-muted-foreground"
+                              }`}>
+                                {avail > 0 ? `${avail} left` : "0 stock"}
+                              </span>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
-
-              <Input className="h-9" placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
             </div>
 
-            <div className="space-y-2">
-              {saleItems.map((item, idx) => {
-                const avail = rowQty(item.product_id);
-                const rowRevenue = Number(item.quantity_sold) * Number(item.selling_price_per_unit);
-                return (
-                  <div key={item.key} className="grid grid-cols-[1fr_auto] gap-2 rounded-lg border border-border p-2">
-                    <div className="space-y-2">
-                      <div className="grid gap-2 md:grid-cols-[1.4fr_0.7fr_0.8fr]">
-                        <Select value={item.product_id} onValueChange={(v) => updateSaleRow(item.key, "product_id", v)}>
-                          <SelectTrigger className="h-9 text-xs md:text-sm">
-                            <SelectValue placeholder={`Product ${idx + 1}`} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(products || []).map((p: any) => (
-                              <SelectItem key={p.id} value={p.id}>
-                                {p.name} ({p.bottle_size})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Input
-                          type="number"
-                          min={1}
-                          className="h-9 text-xs md:text-sm"
-                          placeholder="Qty"
-                          value={item.quantity_sold || ""}
-                          onChange={(e) => updateSaleRow(item.key, "quantity_sold", Number(e.target.value))}
-                        />
-                        <Input
-                          type="number"
-                          step="any"
-                          min={0}
-                          className="h-9 text-xs md:text-sm"
-                          placeholder="Price (₦)"
-                          value={item.selling_price_per_unit || ""}
-                          onChange={(e) => updateSaleRow(item.key, "selling_price_per_unit", Number(e.target.value))}
-                        />
-                      </div>
-                      <div className="grid gap-2 md:grid-cols-[1fr_auto] md:items-center">
-                        <Input
-                          className="h-9 text-xs md:text-sm"
-                          placeholder="Row note (optional)"
-                          value={item.note}
-                          onChange={(e) => updateSaleRow(item.key, "note", e.target.value)}
-                        />
-                        <p className="text-xs text-muted-foreground md:text-right">
-                          {item.product_id ? `Available @ ${selectedBranch?.name || "branch"}: ${avail} · Total: ${fmt(rowRevenue)}` : "Choose a product"}
-                        </p>
-                      </div>
-                    </div>
+            {/* Right 5 Columns: Cart & Checkout */}
+            <div className="lg:col-span-5 flex flex-col min-h-0 border-t lg:border-t-0 lg:border-l lg:pl-4 pt-3 lg:pt-0">
+              <form
+                onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }}
+                className="flex flex-col h-full min-h-0 space-y-2.5"
+              >
+                {/* Cart Header */}
+                <div className="flex items-center justify-between shrink-0">
+                  <h3 className="font-semibold text-xs sm:text-sm flex items-center gap-1.5">
+                    <ShoppingBag className="h-4 w-4 text-primary" />
+                    <span>Current Order</span>
+                    <Badge variant="secondary" className="text-[11px] px-1.5 py-0">
+                      {validSaleItems.reduce((acc, i) => acc + Number(i.quantity_sold || 0), 0)} items
+                    </Badge>
+                  </h3>
+                  {validSaleItems.length > 0 && (
                     <Button
                       type="button"
                       variant="ghost"
-                      size="icon"
-                      className="h-9 w-9 text-destructive"
-                      onClick={() => removeSaleRow(item.key)}
-                      disabled={saleItems.length === 1}
+                      size="sm"
+                      className="h-6 text-[11px] text-muted-foreground hover:text-destructive px-2"
+                      onClick={() => setSaleItems([emptySaleItem(1)])}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      Clear order
+                    </Button>
+                  )}
+                </div>
+
+                {/* Cart Items List */}
+                <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 min-h-[120px] max-h-[220px] lg:max-h-none border rounded-xl p-2 bg-muted/20">
+                  {validSaleItems.length === 0 ? (
+                    <div className="text-center py-6 text-muted-foreground">
+                      <ShoppingBag className="h-7 w-7 mx-auto mb-1.5 opacity-30" />
+                      <p className="text-xs font-medium">Cart is empty</p>
+                      <p className="text-[11px] opacity-75 mt-0.5">Tap any drink or snack to start order</p>
+                    </div>
+                  ) : (
+                    saleItems
+                      .filter((item) => item.product_id)
+                      .map((item) => {
+                        const p = getRowProduct(item.product_id);
+                        const photo = getProductImage(p?.name || "", p?.image_url);
+                        const lineTotal = Number(item.quantity_sold || 0) * Number(item.selling_price_per_unit || 0);
+
+                        return (
+                          <div
+                            key={item.key}
+                            className="flex items-center gap-2 p-1.5 rounded-lg bg-card border border-border shadow-2xs"
+                          >
+                            <img
+                              src={photo}
+                              alt={p?.name || "Drink"}
+                              className="w-10 h-10 rounded-md object-cover bg-muted shrink-0"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-semibold truncate">{p?.name || "Product"}</p>
+                              <p className="text-[10px] text-muted-foreground">
+                                {fmt(item.selling_price_per_unit)} each
+                              </p>
+                            </div>
+
+                            {/* Touch Stepper [-] qty [+] */}
+                            <div className="flex items-center gap-0.5 shrink-0 bg-muted/70 p-0.5 rounded-lg border">
+                              <button
+                                type="button"
+                                onClick={() => changeItemQty(item.key, -1)}
+                                className="h-6 w-6 rounded flex items-center justify-center hover:bg-background active:scale-95 text-foreground"
+                                title="Decrease"
+                              >
+                                <Minus className="h-3 w-3" />
+                              </button>
+                              <span className="w-6 text-center font-bold text-xs">
+                                {item.quantity_sold}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => changeItemQty(item.key, +1)}
+                                className="h-6 w-6 rounded flex items-center justify-center hover:bg-background active:scale-95 text-foreground"
+                                title="Increase"
+                              >
+                                <Plus className="h-3 w-3" />
+                              </button>
+                            </div>
+
+                            <div className="text-right shrink-0 min-w-[55px]">
+                              <p className="text-xs font-bold text-foreground">{fmt(lineTotal)}</p>
+                              <button
+                                type="button"
+                                onClick={() => removeSaleRow(item.key)}
+                                className="text-[10px] text-destructive hover:underline"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                  )}
+                </div>
+
+                {/* Loyalty attach + POS redeem */}
+                <div className="rounded-lg border border-dashed border-border bg-card p-2 shrink-0 space-y-1.5">
+                  {customer ? (
+                    <>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium truncate">
+                            {customer.full_name} <span className="text-muted-foreground font-normal">· {customer.phone}</span>
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">{customerBalance} pts available · {customer.tier}</p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 shrink-0"
+                          onClick={() => { setCustomer(null); setCustomerBalance(0); setAffordable([]); setRedeemId(""); setLookup(""); setCustomerSearchResults([]); setShowCustomerDropdown(false); }}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      <div className="rounded border bg-muted/30 p-1.5 space-y-1 text-xs">
+                        <label className="flex items-center gap-1.5 font-medium cursor-pointer text-[11px]">
+                          <input
+                            type="checkbox"
+                            checked={applyMemberDiscount}
+                            onChange={(e) => setApplyMemberDiscount(e.target.checked)}
+                          />
+                          Apply {memberPct}% member discount {memberDiscount > 0 && <span className="text-emerald-600">(-{fmt(memberDiscount)})</span>}
+                        </label>
+                        {affordable.length > 0 && (
+                          <div className="mt-1 flex gap-1.5">
+                            <Select value={redeemId || "__none"} onValueChange={(v) => setRedeemId(v === "__none" ? "" : v)}>
+                              <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder="Redeem reward" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__none">No redeem</SelectItem>
+                                {affordable.map((r: any) => (
+                                  <SelectItem key={r.id} value={r.id}>{r.name} — {r.points_cost} pts{Number(r.value_amount) ? ` (-${fmt(r.value_amount)})` : r.product_id ? " (free item)" : ""}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {redeemId && <Badge variant="secondary" className="shrink-0 text-[10px]">-{fmt(rewardDiscount)}</Badge>}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-1">
+                      <div className="flex gap-1.5">
+                        <div className="relative flex-1">
+                          <Search className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                          <Input
+                            className="h-7 pl-6 pr-6 text-xs"
+                            placeholder="Loyalty customer (phone / name)…"
+                            value={lookup}
+                            onChange={(e) => setLookup(e.target.value)}
+                            onFocus={() => { if (customerSearchResults.length) setShowCustomerDropdown(true); }}
+                            onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 180)}
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); attachCustomer(); } if (e.key === "Escape") setShowCustomerDropdown(false); }}
+                          />
+                          <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                            {searchingCustomers && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                            {!!lookup && !searchingCustomers && (
+                              <button
+                                type="button"
+                                aria-label="Clear"
+                                className="rounded p-0.5 hover:bg-muted"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => { setLookup(""); setCustomerSearchResults([]); setShowCustomerDropdown(false); }}
+                              >
+                                <X className="h-3 w-3 text-muted-foreground" />
+                              </button>
+                            )}
+                          </div>
+                          {showCustomerDropdown && customerSearchResults.length > 0 && (
+                            <div className="absolute left-0 right-0 z-50 mt-1 max-h-48 overflow-auto rounded-md border bg-popover shadow-lg">
+                              {customerSearchResults.map((c) => (
+                                <button
+                                  key={c.id}
+                                  type="button"
+                                  className="flex w-full flex-col items-start gap-0.5 px-2.5 py-1.5 text-left hover:bg-accent"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => attachCustomerRecord(c)}
+                                >
+                                  <span className="text-xs font-medium leading-none">{c.full_name}</span>
+                                  <span className="text-[10px] text-muted-foreground truncate w-full">
+                                    {c.phone}{c.email ? ` · ${c.email}` : ""} · {c.tier}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-7 w-7 shrink-0"
+                          title="Scan QR code"
+                          onClick={() => setQrOpen(true)}
+                        >
+                          <QrCode className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button type="button" size="sm" className="h-7 px-2 text-xs shrink-0" disabled={lookupBusy || !lookup.trim()} onClick={attachCustomer}>
+                          <UserPlus className="mr-1 h-3 w-3" />
+                          Attach
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 3 Large Touch Payment Buttons */}
+                <div className="shrink-0 space-y-1.5">
+                  <label className="text-[11px] font-medium text-muted-foreground">Payment Method *</label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => { setSaleType("cash"); setPosTerminalId(""); setBankAccountId(""); }}
+                      className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl border-2 transition-all font-medium text-xs gap-0.5 ${
+                        saleType === "cash"
+                          ? "border-emerald-600 bg-emerald-50 text-emerald-900 shadow-xs dark:bg-emerald-950/40 dark:text-emerald-300"
+                          : "border-border hover:border-emerald-300 bg-card text-foreground"
+                      }`}
+                    >
+                      <Banknote className="h-4 w-4 text-emerald-600" />
+                      <span>💵 Cash</span>
+                      {saleType === "cash" && <Badge className="bg-emerald-600 text-white text-[9px] py-0 px-1">Selected</Badge>}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setSaleType("transfer"); setPosTerminalId(""); }}
+                      className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl border-2 transition-all font-medium text-xs gap-0.5 ${
+                        saleType === "transfer"
+                          ? "border-blue-600 bg-blue-50 text-blue-900 shadow-xs dark:bg-blue-950/40 dark:text-blue-300"
+                          : "border-border hover:border-blue-300 bg-card text-foreground"
+                      }`}
+                    >
+                      <Smartphone className="h-4 w-4 text-blue-600" />
+                      <span>📱 Transfer</span>
+                      {saleType === "transfer" && <Badge className="bg-blue-600 text-white text-[9px] py-0 px-1">Selected</Badge>}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setSaleType("pos"); setBankAccountId(""); }}
+                      className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl border-2 transition-all font-medium text-xs gap-0.5 ${
+                        saleType === "pos"
+                          ? "border-purple-600 bg-purple-50 text-purple-900 shadow-xs dark:bg-purple-950/40 dark:text-purple-300"
+                          : "border-border hover:border-purple-300 bg-card text-foreground"
+                      }`}
+                    >
+                      <CreditCard className="h-4 w-4 text-purple-600" />
+                      <span>💳 POS</span>
+                      {saleType === "pos" && <Badge className="bg-purple-600 text-white text-[9px] py-0 px-1">Selected</Badge>}
+                    </button>
+                  </div>
+
+                  {saleType === "pos" && (
+                    <div className="pt-0.5">
+                      <label className="text-[10px] text-muted-foreground">Select POS Terminal *</label>
+                      <Select value={posTerminalId} onValueChange={setPosTerminalId}>
+                        <SelectTrigger className="h-7 text-xs">
+                          <SelectValue placeholder="Select POS terminal" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(posTerminals || []).length === 0 && <div className="px-2 py-1 text-xs text-muted-foreground">No active terminals — add in POS & Banks</div>}
+                          {(posTerminals || []).map((t: any) => (
+                            <SelectItem key={t.id} value={t.id}>{t.label}{t.terminal_id ? ` — ${t.terminal_id}` : ""}{t.bank_name ? ` (${t.bank_name})` : ""}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {saleType === "transfer" && (
+                    <div className="pt-0.5">
+                      <label className="text-[10px] text-muted-foreground">Select Bank Account *</label>
+                      <Select value={bankAccountId} onValueChange={setBankAccountId}>
+                        <SelectTrigger className="h-7 text-xs">
+                          <SelectValue placeholder="Select bank account" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(bankAccounts || []).length === 0 && <div className="px-2 py-1 text-xs text-muted-foreground">No active bank accounts — add in POS & Banks</div>}
+                          {(bankAccounts || []).map((b: any) => (
+                            <SelectItem key={b.id} value={b.id}>{b.bank_name} — {b.account_name} ({b.account_number})</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+
+                <Input className="h-7 text-xs shrink-0" placeholder="Sale note / table # (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+
+                {/* Totals & Complete Sale */}
+                <div className="shrink-0 pt-2 border-t space-y-2 mt-auto">
+                  <div className="rounded-lg bg-muted/60 p-2 text-xs space-y-1">
+                    <div className="flex justify-between"><span className="text-muted-foreground">Subtotal:</span><strong>{fmt(batchTotal)}</strong></div>
+                    {memberDiscount > 0 && <div className="flex justify-between text-emerald-600"><span>Member {memberPct}%:</span><strong>-{fmt(memberDiscount)}</strong></div>}
+                    {redeemId && <div className="flex justify-between text-destructive"><span>Reward:</span><strong>-{fmt(rewardDiscount)}</strong></div>}
+                    <div className="flex justify-between text-sm pt-1 border-t font-bold">
+                      <span>Total Payable:</span>
+                      <span className="text-primary font-mono text-base">{fmt(payableTotal)}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" size="sm" className="h-10 text-xs px-3" onClick={() => { setOpen(false); resetForm(); }}>
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      size="lg"
+                      className="flex-1 h-10 text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                      disabled={saveMutation.isPending || validSaleItems.length === 0 || !branchId || (saleType === "pos" && !posTerminalId) || (saleType === "transfer" && !bankAccountId)}
+                    >
+                      {saveMutation.isPending ? "Recording Sale..." : `Complete Sale · ${fmt(payableTotal)}`}
                     </Button>
                   </div>
-                );
-              })}
+                </div>
+              </form>
             </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <Button type="button" variant="outline" size="sm" onClick={addSaleRow} className="w-fit">
-                <Plus className="mr-1 h-3 w-3" /> Add Row
-              </Button>
-              <div className="rounded-lg bg-muted/60 px-3 py-2 text-sm space-y-1">
-                <div><span className="text-muted-foreground">Subtotal: </span><strong>{fmt(batchTotal)}</strong></div>
-                {memberDiscount > 0 && <div className="text-xs"><span className="text-muted-foreground">Member {memberPct}%: </span><span className="text-emerald-600 font-medium">-{fmt(memberDiscount)}</span></div>}
-                {redeemId && <div className="text-xs"><span className="text-muted-foreground">Redeem {selectedReward?.name}: </span><span className="text-destructive font-medium">-{fmt(rewardDiscount)}</span><span className="text-muted-foreground"> ({selectedReward?.points_cost} pts)</span></div>}
-                <div><span className="text-muted-foreground">Payable: </span><strong>{fmt(payableTotal)}</strong>{customer && <span className="text-muted-foreground text-xs"> · +pts earned on save{redeemId ? " (after redeem)" : ""}</span>}</div>
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => { setOpen(false); resetForm(); }}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={saveMutation.isPending || validSaleItems.length === 0 || !branchId || (saleType === "pos" && !posTerminalId) || (saleType === "transfer" && !bankAccountId)}>
-                {saveMutation.isPending ? "Saving..." : `Save Sale (${validSaleItems.length})`}
-              </Button>
-            </DialogFooter>
-          </form>
+          </div>
         </DialogContent>
       </Dialog>
 

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { MoreVertical } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
 
@@ -16,6 +16,8 @@ export type MobileAction = {
 export interface MobileListItemProps {
   /** Main avatar content – initials or letter, e.g. "A" or first char. */
   avatarFallback: string;
+  /** Optional image URL to display inside avatar */
+  avatarSrc?: string;
   /** Small supporting icon rendered as badge on avatar corner */
   supportingIcon?: React.ReactNode;
   /** Primary heading */
@@ -37,6 +39,7 @@ export interface MobileListItemProps {
 /** Single row: avatar + supporting icon, heading + caption, side action menu → bottom sheet */
 export function MobileListItem({
   avatarFallback,
+  avatarSrc,
   supportingIcon,
   heading,
   caption,
@@ -55,6 +58,13 @@ export function MobileListItem({
       {/* Avatar with supporting icon badge */}
       <div className="relative shrink-0">
         <Avatar className="h-10 w-10">
+          {avatarSrc && (
+            <AvatarImage
+              src={avatarSrc}
+              alt={typeof heading === "string" ? heading : avatarFallback}
+              className="object-cover"
+            />
+          )}
           <AvatarFallback className="bg-primary/15 text-primary font-semibold text-sm">
             {avatarFallback.slice(0, 2).toUpperCase()}
           </AvatarFallback>
